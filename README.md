@@ -1,9 +1,8 @@
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/CodexAI_black_icon.png">
-    <img src="assets/CodexAI_white_icon.png" width="112" alt="CodexApter logo">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/CodexAI_black.png">
+    <img src="assets/CodexAI_white.png" width="112" alt="CodexApter logo">
   </picture>
-  <h1>CodexApter</h1>
   <p><strong>A clean, focused way to connect Codex to the model provider you choose.</strong></p>
   <p>Manage providers, discover models, tune reasoning, and launch Codex from one local setup studio.</p>
   <p>
@@ -29,9 +28,9 @@ Run this in PowerShell to download and install directly from GitHub without clon
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/free-codex-cli/main/scripts/install.ps1")))
 ```
 
-The installer downloads the project source and installs the required tools for your Windows account, then opens the configuration page. Add your provider and API key there. Open a new terminal when setup finishes so it can find `codex-ca` on PATH. You can also run `scripts/install.ps1` from a local checkout.
+The installer downloads the project source and installs the required tools for your Windows account. It does not automatically open CodexApter or the setup page. Open a new terminal and run `codex-ca setup` when you are ready to configure a provider and API key. You can also run `scripts/install.ps1` from a local checkout.
 
-Run the same command again any time to update CodexApter to the latest code on GitHub. The installer migrates the previous wrapper and user data, then removes the old wrapper/PATH entry after the new command is installed. Configuration and API keys move from `%APPDATA%\codex-ai` to `%APPDATA%\codexapter`; the model cache moves from `%LOCALAPPDATA%\codex-ai` to `%LOCALAPPDATA%\codexapter`. Migration never overwrites files already at the new location. Codex CLI is not removed or reinstalled. Updates keep your existing settings; the setup page opens only on first installation.
+Run the same command again any time to update CodexApter to the latest code on GitHub. The installer migrates the previous wrapper and user data, then removes the old wrapper/PATH entry after the new command is installed. Configuration and API keys move from `%APPDATA%\codex-ai` to `%APPDATA%\codexapter`; the model cache moves from `%LOCALAPPDATA%\codex-ai` to `%LOCALAPPDATA%\codexapter`. Migration never overwrites files already at the new location. Codex CLI is not removed or reinstalled. Updates keep your existing settings and never open the setup page automatically.
 
 To uninstall the CodexApter wrapper without cloning the repository, run this in PowerShell:
 

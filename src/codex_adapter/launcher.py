@@ -44,14 +44,6 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     return argv, env
 
 
-def start(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str]) -> subprocess.Popen:
-    argv, env = build_invocation(config, provider, model, reasoning, extra)
-    try:
-        return subprocess.Popen(argv, cwd=Path.cwd(), env=env)
-    except OSError as exc:
-        raise LaunchError(f"Could not start Codex: {exc}") from exc
-
-
 def launch(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str]) -> int:
     argv, env = build_invocation(config, provider, model, reasoning, extra)
     try:

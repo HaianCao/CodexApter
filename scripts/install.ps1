@@ -66,7 +66,7 @@ try {
     Write-Host 'This installer installs Codex CLI and CodexApter (codex-ca) for your Windows user only.' -ForegroundColor White
     Write-Host 'It may download Python and software from the official Codex installer. It does not request administrator access.'
     if (-not $repoRoot) { Write-Host 'The CodexApter source will be downloaded from the project GitHub repository.' }
-    Write-Host 'At the end, the local setup page will ask you to configure provider details and API keys.'
+    Write-Host 'After installation, run codex-ca setup whenever you are ready to configure a provider and API key.'
     if ((Read-Host 'Continue? [y/N]') -notmatch '^(y|yes)$') { return }
 
     if (-not $repoRoot) {
@@ -183,18 +183,13 @@ try {
         Write-Host 'CodexApter has been updated. Your existing provider configuration and API keys were left unchanged.' -ForegroundColor Green
         Write-Host 'Run codex-ca setup if you want to review or change your settings.'
     }
-    else {
-        Write-Step 'Launching CodexApter setup'
-        & $codexCaExe setup
-        if ($LASTEXITCODE -ne 0) { throw "The setup page exited with code $LASTEXITCODE." }
-    }
-
     if ($isUpdate) {
         Write-Host "`nCodexApter update complete. Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca." -ForegroundColor Green
         Write-Host 'The Codex CLI itself was not updated.'
     }
     else {
-        Write-Host "`nCodexApter installation complete. Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca." -ForegroundColor Green
+        Write-Host "`nCodexApter installation complete. Setup was not opened automatically." -ForegroundColor Green
+        Write-Host 'Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca setup when you are ready.'
     }
 }
 catch {

@@ -14,7 +14,7 @@ from .catalog import cached_models, fetch_models
 from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url
 from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
-from .launcher import start
+from .launcher import build_invocation, launch
 
 
 def public_config(config: Config) -> dict:
@@ -67,6 +67,7 @@ def _remove_provider_config(config: Config, provider_id: str) -> str | None:
 
 def serve(config: Config) -> int:
     session_token = secrets.token_urlsafe(32)
+    run_request: tuple[Provider, str, str] | None = None
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -158,6 +159,7 @@ def serve(config: Config) -> int:
             self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
         def do_POST(self):
+            nonlocal run_request
             if not self._authorized():
                 self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
                 return
@@ -227,7 +229,10 @@ def serve(config: Config) -> int:
                     config.defaults.provider, config.defaults.model, config.defaults.reasoning_effort = provider.id, model, reasoning
                     config.env_file = env_file_path(config)
                     save(config)
-                    start(config, provider, model, reasoning, [])
+                    # Validate the executable and credentials before closing the
+                    # setup page so failures can still be shown in the browser.
+                    build_invocation(config, provider, model, reasoning, [])
+                    run_request = (provider, model, reasoning)
                     self._json({"started": True})
                     threading.Thread(target=server.shutdown, daemon=True).start()
                     return
@@ -273,6 +278,12 @@ def serve(config: Config) -> int:
         return 0
     finally:
         server.server_close()
+    if run_request:
+        provider, model, reasoning = run_request
+        # Hand the same terminal from the setup server to the foreground Codex
+        # CLI. Wait here so setup cannot exit and take the TUI's console with it.
+        return launch(config, provider, model, reasoning, [])
+    return 0
 
 
 _HTML = Path(__file__).with_name("web_template.html").read_text(encoding="utf-8")
