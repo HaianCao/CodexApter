@@ -43,6 +43,12 @@ def _validate_provider_id(value: str) -> None:
         raise ConfigError("Provider ID must use lowercase letters, digits, '_' or '-'.")
 
 
+def _default_secret_names(provider_id: str) -> tuple[str, str]:
+    """Derive internal secret identifiers from a validated provider ID."""
+    env_var = "".join(char if char.isalnum() else "_" for char in provider_id).upper() + "_TOKEN"
+    return f"{provider_id}-main", env_var
+
+
 def _remove_provider_config(config: Config, provider_id: str) -> str | None:
     provider = config.providers[provider_id]
     secret_ref = provider.auth_secret_ref
@@ -142,31 +148,28 @@ def serve(config: Config) -> int:
                     base_url = validate_base_url(str(body.get("base_url", "")).strip())
                     if not display_name:
                         raise ConfigError("Display name is required.")
-                    secret_ref = str(body.get("auth_secret_ref", "")).strip() or None
-                    secret_env = str(body.get("secret_env", "")).strip() or None
-                    if secret_ref:
-                        _validate_provider_id(secret_ref)
-                    if secret_env and not __import__("re").fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", secret_env):
-                        raise ConfigError("Environment variable names may contain letters, digits and underscores, and cannot start with a digit.")
-                    if bool(secret_ref) != bool(secret_env) and provider_id not in config.providers:
-                        raise ConfigError("Set both the secret reference and environment variable, or leave both blank.")
-                    if secret_ref and secret_env:
-                        config.secrets[secret_ref] = SecretReference(secret_ref, env_var=secret_env)
                     current = config.providers.get(provider_id)
+                    # Keep existing custom mappings intact, but new providers get
+                    # predictable names without asking users to manage internals.
+                    if current and current.auth_secret_ref:
+                        secret_ref = current.auth_secret_ref
+                        secret = config.secrets.get(secret_ref)
+                        secret_env = secret.env_var if secret else _default_secret_names(provider_id)[1]
+                    else:
+                        secret_ref, secret_env = _default_secret_names(provider_id)
+                    config.secrets[secret_ref] = SecretReference(secret_ref, env_var=secret_env)
                     config.providers[provider_id] = Provider(
                         id=provider_id,
                         display_name=display_name,
                         base_url=base_url,
                         protocol="responses",
                         execution_mode="direct",
-                        auth_secret_ref=secret_ref or (current.auth_secret_ref if current else None),
+                        auth_secret_ref=secret_ref,
                         default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
                         discovery=Discovery(enabled=bool(body.get("discovery", True))),
                     )
                     api_key = str(body.get("api_key", ""))
                     if api_key:
-                        if not secret_env:
-                            raise ConfigError("Set the environment variable name before saving an API key.")
                         store_token(secret_env, api_key, config=config)
                     config.env_file = env_file_path(config)
                     save(config)
@@ -268,9 +271,15 @@ _HTML = r'''<!doctype html>
 <div class="actions"><button id="saveDefault" class="btn" type="button">Save as default</button><button id="runBtn" class="btn primary" type="button">Run Codex</button></div></section></div></main><div id="toast" class="toast hidden" role="alert"></div>
 <script>
 'use strict';
+// Keep the page background continuous when its content is shorter than the viewport.
+const polish=document.createElement('style');polish.textContent='html{min-height:100%;background:#0b1020}body{min-height:100vh;background-color:#0b1020;background-attachment:fixed;background-repeat:no-repeat}';document.head.append(polish);
 const SESSION_TOKEN='__SESSION_TOKEN__';
 const $=id=>document.getElementById(id);
 let state={config:{providers:[],secrets:[],defaults:{}},models:[],stale:false,toastTimer:null};
+// Secret reference and env var are implementation details; derive them server-side.
+document.getElementById('secretRef')?.closest('.row')?.remove();
+document.getElementById('providerId').setAttribute('pattern','[a-z0-9][a-z0-9_-]*');
+document.getElementById('providerId').setAttribute('title','Lowercase letters, digits, underscores or hyphens; no spaces.');
 function notify(message,error=false){const el=$('toast');el.textContent=message;el.classList.toggle('error',error);el.classList.remove('hidden');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.add('hidden'),4200);$('status').textContent=message;}
 async function api(path,options={}){const response=await fetch(path,{...options,headers:{'X-Codex-AI-Token':SESSION_TOKEN,'Content-Type':'application/json',...(options.headers||{})},cache:'no-store'});let data={};try{data=await response.json()}catch{}if(!response.ok)throw new Error(data.error||`Request failed (${response.status})`);return data;}
 function selectedProvider(){return state.config.providers.find(p=>p.id===$('providerSelect').value)||null;}
@@ -279,9 +288,9 @@ function showProvider(){const p=selectedProvider();const meta=$('providerMeta');
 function renderModels(){const box=$('modelList');box.replaceChildren();const query=$('modelInput').value.trim().toLowerCase();const matches=state.models.filter(model=>model.toLowerCase().includes(query));for(const model of matches){const row=document.createElement('div');row.className='model-option';row.setAttribute('role','option');row.tabIndex=0;row.textContent=model;const choose=()=>{$('modelInput').value=model;renderModels();};row.addEventListener('click',choose);row.addEventListener('keydown',event=>{if(event.key==='Enter'){choose();$('modelInput').focus();}});box.append(row);}if(!matches.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=query?'No catalog match. Pressing Run will use the typed model ID.':'No model catalog loaded. Enter a model ID manually.';box.append(empty);}const p=selectedProvider();$('catalogHint').textContent=state.stale?'Showing a cached catalog that may be out of date.':(p?.discovery.enabled?`${matches.length} matching model${matches.length===1?'':'s'}.`:'This provider has no model discovery; manual model IDs are supported.');}
 async function loadConfig(){state.config=await api('/api/config');fillProviderSelect();showProvider();const defaults=state.config.defaults||{};$('modelInput').value=defaults.model||'';$('reasoning').value=defaults.reasoning_effort||'medium';await loadModels();}
 async function loadModels(){const p=selectedProvider();state.models=[];state.stale=false;if(!p){renderModels();return;}try{const result=await api(`/api/models?provider=${encodeURIComponent(p.id)}`);state.models=result.models||[];state.stale=!!result.stale;}catch(error){notify(error.message,true);}renderModels();if(p.discovery.enabled)refreshModels();}
-function editProvider(){const p=selectedProvider();$('providerForm').classList.remove('hidden');$('providerId').value=p?.id||'';$('providerId').readOnly=!!p;$('displayName').value=p?.display_name||'';$('baseUrl').value=p?.base_url||'';$('secretRef').value=p?.auth_secret_ref||'';const secret=state.config.secrets.find(item=>item.name===p?.auth_secret_ref);$('secretEnv').value=secret?.env_var||'';$('apiKey').value='';$('discoveryEnabled').checked=p?.discovery?.enabled??true;}
+function editProvider(){const p=selectedProvider();$('providerForm').classList.remove('hidden');$('providerId').value=p?.id||'';$('providerId').readOnly=!!p;$('displayName').value=p?.display_name||'';$('baseUrl').value=p?.base_url||'';$('apiKey').value='';$('discoveryEnabled').checked=p?.discovery?.enabled??true;}
 function cancelEdit(){$('providerForm').classList.add('hidden');}
-async function saveProvider(){const payload={id:$('providerId').value.trim(),display_name:$('displayName').value.trim(),base_url:$('baseUrl').value.trim(),auth_secret_ref:$('secretRef').value.trim(),secret_env:$('secretEnv').value.trim(),api_key:$('apiKey').value,discovery:$('discoveryEnabled').checked};try{await api('/api/provider',{method:'POST',body:JSON.stringify(payload)});$('apiKey').value='';cancelEdit();await loadConfig();notify('Provider saved.');}catch(error){notify(error.message,true);}}
+async function saveProvider(){const payload={id:$('providerId').value.trim(),display_name:$('displayName').value.trim(),base_url:$('baseUrl').value.trim(),api_key:$('apiKey').value,discovery:$('discoveryEnabled').checked};try{await api('/api/provider',{method:'POST',body:JSON.stringify(payload)});$('apiKey').value='';cancelEdit();await loadConfig();notify('Provider saved.');}catch(error){notify(error.message,true);}}
 async function removeProvider(){const p=selectedProvider();if(!p)return;if(!confirm(`Delete ${p.display_name||p.id}?`))return;try{await api(`/api/provider?provider=${encodeURIComponent(p.id)}`,{method:'DELETE'});await loadConfig();notify('Provider deleted.');}catch(error){notify(error.message,true);}}
 async function refreshModels(){const p=selectedProvider();if(!p)return;const button=$('refreshBtn');button.disabled=true;button.textContent='Loading…';try{const result=await api('/api/models/refresh',{method:'POST',body:JSON.stringify({provider:p.id})});state.models=result.models||[];state.stale=false;renderModels();notify(`Loaded ${state.models.length} models.`);}catch(error){notify(error.message,true);}finally{button.textContent='↻ Refresh models';button.disabled=!selectedProvider()?.discovery.enabled;}}
 function selection(){const provider=selectedProvider();const model=$('modelInput').value.trim();if(!provider)throw new Error('Add or select a provider first.');if(!model)throw new Error('Enter or select a model ID.');return {provider:provider.id,model,reasoning:$('reasoning').value};}

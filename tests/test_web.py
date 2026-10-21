@@ -3,10 +3,14 @@ import unittest
 from pathlib import Path
 
 from codex_adapter.config import Config, Defaults, ModelAlias, Provider, SecretReference
-from codex_adapter.web import _remove_provider_config
+from codex_adapter.web import _default_secret_names, _remove_provider_config
 
 
 class WebConfigTests(unittest.TestCase):
+    def test_default_secret_names_follow_provider_id_convention(self):
+        self.assertEqual(_default_secret_names("agent_router"), ("agent_router-main", "AGENT_ROUTER_TOKEN"))
+        self.assertEqual(_default_secret_names("agent-router"), ("agent-router-main", "AGENT_ROUTER_TOKEN"))
+
     def test_delete_provider_removes_unused_secret_and_aliases(self):
         with tempfile.TemporaryDirectory() as directory:
             env_path = Path(directory) / ".env"
