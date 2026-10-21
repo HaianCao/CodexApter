@@ -14,6 +14,14 @@ The installer downloads the project source and installs the required tools for y
 
 Run the same command again any time to update `codex-ai` to the latest code on GitHub. Updates keep your existing configuration and API keys; the setup page opens only on first installation. This does not update the Codex CLI itself. An older installed `codex-ai` keeps working if you do not update.
 
+To uninstall `codex-ai` without cloning the repository, run this in PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/free-codex-cli/main/scripts/uninstall.ps1")))
+```
+
+The uninstaller asks for confirmation, removes the app and its user PATH entry, and keeps your configuration/API keys by default. You can separately confirm their deletion. The Codex CLI itself is left installed.
+
 Requirements: Windows 10/11 and an internet connection. If Python 3.11+ is missing, the script uses `winget` to install it. The script does not require administrator access or change the system-wide PATH.
 
 ## Configure
