@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 import re
-import json
+import shutil
 import tempfile
 import tomllib
 from dataclasses import dataclass, field
@@ -19,23 +20,88 @@ _REASONING_EFFORTS = {"low", "medium", "high"}
 
 
 def config_path() -> Path:
-    override = os.environ.get("CODEX_AI_CONFIG")
+    override = os.environ.get("CODEX_CA_CONFIG")
     if override:
         return Path(override).expanduser()
     appdata = os.environ.get("APPDATA")
     if appdata:
-        return Path(appdata) / "codex-ai" / "config.toml"
-    return Path.home() / ".config" / "codex-ai" / "config.toml"
+        return Path(appdata) / "codexapter" / "config.toml"
+    return Path.home() / ".config" / "codexapter" / "config.toml"
 
 
 def cache_path() -> Path:
-    override = os.environ.get("CODEX_AI_CACHE")
+    override = os.environ.get("CODEX_CA_CACHE")
     if override:
         return Path(override).expanduser()
     local = os.environ.get("LOCALAPPDATA")
     if local:
-        return Path(local) / "codex-ai" / "catalog-cache.json"
-    return Path.home() / ".cache" / "codex-ai" / "catalog-cache.json"
+        return Path(local) / "codexapter" / "catalog-cache.json"
+    return Path.home() / ".cache" / "codexapter" / "catalog-cache.json"
+
+
+def _migrate_legacy_config(target: Path) -> Path:
+    """Copy legacy user data once; never overwrite an existing CodexApter file."""
+    if os.environ.get("CODEX_CA_CONFIG"):
+        return target
+    appdata = os.environ.get("APPDATA")
+    legacy = (Path(appdata) / "codex-ai" / "config.toml") if appdata else Path.home() / ".config" / "codex-ai" / "config.toml"
+    if target.exists() or not legacy.is_file():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(legacy, target)
+    old_env, new_env = legacy.parent / ".env", target.parent / ".env"
+    migrated_env = False
+    if old_env.is_file() and not new_env.exists():
+        shutil.copy2(old_env, new_env)
+        migrated_env = True
+    elif old_env.is_file() and new_env.is_file():
+        try:
+            existing = {line.split("=", 1)[0].strip() for line in new_env.read_text(encoding="utf-8").splitlines() if "=" in line and not line.lstrip().startswith("#")}
+            old_lines = old_env.read_text(encoding="utf-8").splitlines()
+            additions = [line for line in old_lines if "=" in line and not line.lstrip().startswith("#") and line.split("=", 1)[0].strip() not in existing]
+            if additions:
+                with new_env.open("a", encoding="utf-8", newline="\n") as handle:
+                    handle.write(("\n" if new_env.stat().st_size else "") + "\n".join(additions) + "\n")
+            migrated_env = True
+        except OSError:
+            pass
+    # Rewrite the standard dotenv path if the old config stored it explicitly.
+    try:
+        raw = tomllib.loads(target.read_text(encoding="utf-8"))
+        if raw.get("env_file") and Path(raw["env_file"]).expanduser() == old_env:
+            content = target.read_text(encoding="utf-8")
+            new_line = f"env_file = {json.dumps(str(new_env), ensure_ascii=False)}"
+            target.write_text(re.sub(r"(?m)^env_file\s*=.*$", lambda _match: new_line, content, count=1), encoding="utf-8")
+    except (OSError, tomllib.TOMLDecodeError, TypeError):
+        pass
+    if not old_env.exists() or migrated_env:
+        legacy.unlink(missing_ok=True)
+    if migrated_env:
+        old_env.unlink(missing_ok=True)
+    try:
+        legacy.parent.rmdir()
+    except OSError:
+        pass
+    return target
+
+
+def migrate_legacy_cache(target: Path | None = None) -> Path:
+    target = target or cache_path()
+    if os.environ.get("CODEX_CA_CACHE"):
+        return target
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        legacy = Path(local) / "codex-ai" / "catalog-cache.json"
+    else:
+        try:
+            legacy = Path.home() / ".cache" / "codex-ai" / "catalog-cache.json"
+        except RuntimeError:
+            return target
+    if not target.exists() and legacy.is_file():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy, target)
+        legacy.unlink(missing_ok=True)
+    return target
 
 
 @dataclass
@@ -102,13 +168,13 @@ class Config:
             requested_model = alias.model_id
             reasoning = reasoning or alias.reasoning_effort
         if not requested_provider:
-            raise ConfigError("No default provider. Run 'codex-ai setup'.")
+            raise ConfigError("No default provider. Run 'codex-ca setup'.")
         selected = self.providers.get(requested_provider)
         if not selected:
             raise ConfigError(f"Unknown provider '{requested_provider}'.")
         resolved_model = requested_model or selected.default_model
         if not resolved_model:
-            raise ConfigError("No model selected. Run 'codex-ai setup'.")
+            raise ConfigError("No model selected. Run 'codex-ca setup'.")
         return selected, resolved_model, reasoning or self.defaults.reasoning_effort
 
 
@@ -164,7 +230,9 @@ def validate_base_url(value: str) -> str:
 
 
 def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> Config:
-    source = path or config_path()
+    source = path or _migrate_legacy_config(config_path())
+    if path is None:
+        migrate_legacy_cache()
     if not source.exists():
         return Config(path=source)
     try:

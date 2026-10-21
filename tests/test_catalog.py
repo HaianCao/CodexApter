@@ -24,6 +24,20 @@ class _Response:
 
 
 class CatalogTests(unittest.TestCase):
+    def test_default_cache_migrates_from_legacy_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            local = Path(directory) / "local"
+            old_root, new_root = local / "codex-ai", local / "codexapter"
+            old_root.mkdir(parents=True)
+            old_file = old_root / "catalog-cache.json"
+            old_file.write_text('{"providers": {"demo": {"models": ["m"], "fetched_at": 0}}}', encoding="utf-8")
+            with patch.dict("os.environ", {"LOCALAPPDATA": str(local)}, clear=True):
+                models, stale = cached_models(Provider("demo", "Demo", "https://example.test/v1"))
+            self.assertEqual(models, ["m"])
+            self.assertTrue(stale)
+            self.assertTrue((new_root / "catalog-cache.json").exists())
+            self.assertFalse(old_file.exists())
+
     def test_fetch_models_normalizes_ids_and_caches_catalog(self):
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory) / "catalog.json"

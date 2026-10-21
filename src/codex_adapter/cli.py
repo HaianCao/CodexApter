@@ -18,7 +18,7 @@ def _add_selection(parser: argparse.ArgumentParser) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="codex-ai")
+    parser = argparse.ArgumentParser(prog="codex-ca")
     parser.add_argument("--config", type=Path, default=None, help="Path to configuration TOML")
     commands = parser.add_subparsers(dest="command")
     setup = commands.add_parser("setup", help="Open interactive provider/model setup")

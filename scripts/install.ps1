@@ -42,6 +42,16 @@ function Add-UserPath([string]$Directory) {
     }
 }
 
+function Remove-UserPath([string]$Directory) {
+    $current = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $entries = @($current -split ';' | Where-Object { $_ })
+    $kept = @($entries | Where-Object { $_.TrimEnd('\') -ine $Directory.TrimEnd('\') })
+    if ($kept.Count -ne $entries.Count) {
+        [Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')
+    }
+    $env:Path = (@($env:Path -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ine $Directory.TrimEnd('\') }) -join ';')
+}
+
 try {
     $repoRoot = $null
     if ($PSScriptRoot) {
@@ -53,15 +63,15 @@ try {
         if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
     }
 
-    Write-Host 'This installer installs Codex CLI and codex-ai for your Windows user only.' -ForegroundColor White
+    Write-Host 'This installer installs Codex CLI and CodexApter (codex-ca) for your Windows user only.' -ForegroundColor White
     Write-Host 'It may download Python and software from the official Codex installer. It does not request administrator access.'
-    if (-not $repoRoot) { Write-Host 'The codex-ai source will be downloaded from the project GitHub repository.' }
+    if (-not $repoRoot) { Write-Host 'The CodexApter source will be downloaded from the project GitHub repository.' }
     Write-Host 'At the end, the local setup page will ask you to configure provider details and API keys.'
     if ((Read-Host 'Continue? [y/N]') -notmatch '^(y|yes)$') { return }
 
     if (-not $repoRoot) {
-        Write-Step 'Downloading codex-ai source from GitHub'
-        $sourceTempRoot = Join-Path ([IO.Path]::GetTempPath()) ("codex-ai-source-{0}" -f [guid]::NewGuid())
+        Write-Step 'Downloading CodexApter source from GitHub'
+        $sourceTempRoot = Join-Path ([IO.Path]::GetTempPath()) ("codexapter-source-{0}" -f [guid]::NewGuid())
         $archivePath = "$sourceTempRoot.zip"
         New-Item -ItemType Directory -Path $sourceTempRoot -Force | Out-Null
         try {
@@ -112,44 +122,79 @@ try {
         throw 'Codex installer completed, but codex.exe was not found. Open a new terminal and verify the official Codex installation before rerunning setup.'
     }
 
-    $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\codex-ai'
+    $legacyInstallRoot = Join-Path $env:LOCALAPPDATA 'Programs\codex-ai'
+    $legacyScripts = Join-Path $legacyInstallRoot 'venv\Scripts'
+    $legacyExe = Join-Path $legacyScripts 'codex-ai.exe'
+    $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\codex-ca'
     $venv = Join-Path $installRoot 'venv'
     $venvPython = Join-Path $venv 'Scripts\python.exe'
-    $codexAiExe = Join-Path $venv 'Scripts\codex-ai.exe'
-    $isUpdate = Test-Path -LiteralPath $codexAiExe
+    $codexCaExe = Join-Path $venv 'Scripts\codex-ca.exe'
+    $isUpdate = (Test-Path -LiteralPath $codexCaExe) -or (Test-Path -LiteralPath $legacyExe)
     if ($isUpdate) {
-        Write-Step 'Updating codex-ai in the existing user Python environment'
+        Write-Step 'Updating or migrating CodexApter in the existing user installation'
     }
     else {
-        Write-Step 'Installing codex-ai in a dedicated user Python environment'
+        Write-Step 'Installing CodexApter in a dedicated user Python environment'
     }
     if (-not (Test-Path -LiteralPath $venvPython)) {
         New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
         & $pythonExe -m venv $venv
-        if ($LASTEXITCODE -ne 0) { throw 'Could not create the codex-ai Python environment.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Could not create the CodexApter Python environment.' }
     }
     # Force reinstall so source changes are applied even if pyproject.toml still has the same version.
     & $venvPython -m pip install --disable-pip-version-check --force-reinstall $repoRoot
-    if ($LASTEXITCODE -ne 0) { throw 'Installing codex-ai failed. Check the Python/pip output and rerun this setup file.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Installing CodexApter failed. Check the Python/pip output and rerun this setup file.' }
+    if (-not (Test-Path -LiteralPath $codexCaExe)) { throw 'The package installed but codex-ca.exe was not created.' }
     $venvScripts = Join-Path $venv 'Scripts'
     Add-UserPath $venvScripts
 
+    # Trigger the application's one-time user-data migration while both old and
+    # new wrapper installations are still present. Invalid config is preserved.
+    & $codexCaExe config validate
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning 'Could not validate or migrate the existing provider config. It has been preserved; run codex-ca setup to inspect it.'
+    }
+
+    # Migrate the old dedicated wrapper installation after the new executable is in place.
+    if ((Test-Path -LiteralPath $legacyInstallRoot) -and ([IO.Path]::GetFullPath($legacyInstallRoot).TrimEnd('\') -ieq [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\codex-ai')).TrimEnd('\'))) {
+        Remove-Item -LiteralPath $legacyInstallRoot -Recurse -Force
+        Remove-UserPath $legacyScripts
+        Write-Host 'Removed the old codex-ai wrapper installation. Provider settings, API keys, and Codex CLI were preserved.'
+    }
+
+    $pipx = Get-Command pipx -ErrorAction SilentlyContinue
+    if ($pipx) {
+        try {
+            $pipxState = (& $pipx.Source list --json 2>$null | Out-String) | ConvertFrom-Json
+            if ($pipxState.venvs.PSObject.Properties.Name -contains 'codex-multi-provider') {
+                if ((Read-Host 'A legacy pipx codex-ai wrapper was found. Remove that old wrapper too? [y/N]') -match '^(y|yes)$') {
+                    & $pipx.Source uninstall codex-multi-provider
+                    if ($LASTEXITCODE -ne 0) { Write-Warning 'The old pipx wrapper was not removed. It can be removed later with: pipx uninstall codex-multi-provider' }
+                    else { Write-Host 'Removed the old pipx wrapper; Codex CLI and provider data were preserved.' }
+                }
+            }
+        }
+        catch {
+            Write-Warning 'Could not inspect pipx for an old codex-ai wrapper.'
+        }
+    }
+
     if ($isUpdate) {
-        Write-Host 'codex-ai has been updated. Your existing provider configuration and API keys were left unchanged.' -ForegroundColor Green
-        Write-Host 'Run codex-ai setup if you want to review or change your settings.'
+        Write-Host 'CodexApter has been updated. Your existing provider configuration and API keys were left unchanged.' -ForegroundColor Green
+        Write-Host 'Run codex-ca setup if you want to review or change your settings.'
     }
     else {
-        Write-Step 'Launching codex-ai setup'
-        & $codexAiExe setup
+        Write-Step 'Launching CodexApter setup'
+        & $codexCaExe setup
         if ($LASTEXITCODE -ne 0) { throw "The setup page exited with code $LASTEXITCODE." }
     }
 
     if ($isUpdate) {
-        Write-Host "`ncodex-ai update complete. Open a new CMD, PowerShell, or Windows Terminal tab to use the updated command." -ForegroundColor Green
+        Write-Host "`nCodexApter update complete. Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca." -ForegroundColor Green
         Write-Host 'The Codex CLI itself was not updated.'
     }
     else {
-        Write-Host "`ncodex-ai installation complete. Open a new CMD, PowerShell, or Windows Terminal tab to use the command." -ForegroundColor Green
+        Write-Host "`nCodexApter installation complete. Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca." -ForegroundColor Green
     }
 }
 catch {

@@ -1,10 +1,11 @@
 import os
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_adapter.config import Config, Defaults, Discovery, ModelAlias, Provider, SecretReference, load, save, validate_base_url
+from codex_adapter.config import Config, Defaults, Discovery, ModelAlias, Provider, SecretReference, cache_path, config_path, load, save, validate_base_url
 from codex_adapter.credentials import env_file_path, remove_token, resolve_token, store_token
 from codex_adapter.errors import ConfigError
 
@@ -79,7 +80,7 @@ class ConfigTests(unittest.TestCase):
         configured = Path("configured.env")
         override = Path("override.env")
         config = Config(env_file=configured)
-        with patch.dict("os.environ", {"CODEX_AI_ENV_FILE": str(override)}):
+        with patch.dict("os.environ", {"CODEX_CA_ENV_FILE": str(override)}):
             self.assertEqual(env_file_path(config), override)
 
     def test_installed_app_env_path_is_stable_and_not_current_directory(self):
@@ -87,8 +88,42 @@ class ConfigTests(unittest.TestCase):
             config = Config(path=Path(directory) / "config.toml")
             with patch.dict("os.environ", {}, clear=False), patch.object(Path, "is_file", return_value=False):
                 import os
-                os.environ.pop("CODEX_AI_ENV_FILE", None)
+                os.environ.pop("CODEX_CA_ENV_FILE", None)
                 self.assertEqual(env_file_path(config), Path(directory) / ".env")
+
+    def test_default_paths_use_codexapter_and_ca_overrides(self):
+        with patch.dict("os.environ", {"APPDATA": "C:/Users/test/AppData/Roaming", "LOCALAPPDATA": "C:/Users/test/AppData/Local"}, clear=True):
+            self.assertEqual(config_path(), Path("C:/Users/test/AppData/Roaming/codexapter/config.toml"))
+            self.assertEqual(cache_path(), Path("C:/Users/test/AppData/Local/codexapter/catalog-cache.json"))
+        with patch.dict("os.environ", {"CODEX_CA_CONFIG": "custom.toml", "CODEX_CA_CACHE": "custom-cache.json"}, clear=True):
+            self.assertEqual(config_path(), Path("custom.toml"))
+            self.assertEqual(cache_path(), Path("custom-cache.json"))
+
+    def test_first_load_migrates_legacy_config_and_dotenv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            appdata = Path(directory) / "roaming"
+            old_root, new_root = appdata / "codex-ai", appdata / "codexapter"
+            old_root.mkdir(parents=True)
+            (old_root / "config.toml").write_text('schema_version = 1\nenv_file = ' + json.dumps(str(old_root / ".env")) + '\n', encoding="utf-8")
+            (old_root / ".env").write_text('DEMO_TOKEN="keep"\n', encoding="utf-8")
+            with patch.dict("os.environ", {"APPDATA": str(appdata), "LOCALAPPDATA": str(Path(directory) / "local")}, clear=True):
+                loaded = load()
+            self.assertTrue((new_root / "config.toml").is_file())
+            self.assertEqual(loaded.env_file, new_root / ".env")
+            self.assertEqual((new_root / ".env").read_text(encoding="utf-8"), 'DEMO_TOKEN="keep"\n')
+            self.assertFalse(old_root.exists())
+
+    def test_existing_new_config_wins_without_touching_legacy_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            appdata = Path(directory) / "roaming"
+            old_root, new_root = appdata / "codex-ai", appdata / "codexapter"
+            old_root.mkdir(parents=True)
+            new_root.mkdir(parents=True)
+            (old_root / "config.toml").write_text('schema_version = 1\n', encoding="utf-8")
+            (new_root / "config.toml").write_text('[defaults]\nreasoning_effort = "high"\n', encoding="utf-8")
+            with patch.dict("os.environ", {"APPDATA": str(appdata), "LOCALAPPDATA": str(Path(directory) / "local")}, clear=True):
+                self.assertEqual(load().defaults.reasoning_effort, "high")
+            self.assertTrue((old_root / "config.toml").exists())
 
     def test_base_url_allows_https_and_exact_loopback_only(self):
         self.assertEqual(validate_base_url("https://api.example.test/v1/"), "https://api.example.test/v1")

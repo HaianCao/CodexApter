@@ -9,13 +9,13 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .config import Config, Provider, cache_path
+from .config import Config, Provider, cache_path, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
 
 
 def _read_cache(path: Path | None = None) -> dict:
-    source = path or cache_path()
+    source = path or migrate_legacy_cache()
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
@@ -26,7 +26,7 @@ def _read_cache(path: Path | None = None) -> dict:
 
 
 def _write_cache(data: dict, path: Path | None = None) -> None:
-    target = path or cache_path()
+    target = path or migrate_legacy_cache()
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
     try:
@@ -55,7 +55,7 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
         raise DiscoveryError(f"Provider '{provider.id}' does not expose model discovery.")
     if provider.discovery.response_format != "openai_models_list":
         raise DiscoveryError(f"Unsupported model discovery format '{provider.discovery.response_format}'.")
-    headers = {"Accept": "application/json", "User-Agent": "codex-ai/0.1"}
+    headers = {"Accept": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
     token = resolve_token(config, provider, required=False)
     if token:
         headers["Authorization"] = f"Bearer {token}"

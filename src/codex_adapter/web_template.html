@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#090b10">
+  <title>CodexApter · Provider Studio</title>
+  <link id="favicon" rel="icon" type="image/png" href="/assets/CodexAI_black_icon.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #090b10;
+      --page-glow: #111a2b;
+      --surface: #11151d;
+      --surface-raised: #171d28;
+      --surface-input: #0c1017;
+      --line: #293241;
+      --line-strong: #3a475a;
+      --text: #f1f5fb;
+      --muted: #99a5b6;
+      --soft: #c2ccda;
+      --accent: #8b7bff;
+      --accent-strong: #6c5ce7;
+      --accent-ink: #fff;
+      --danger: #ff7b83;
+      --shadow: 0 24px 70px #0005;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --page: #f4f6fa;
+      --page-glow: #e8edfa;
+      --surface: #fff;
+      --surface-raised: #f6f8fc;
+      --surface-input: #fff;
+      --line: #dce2ec;
+      --line-strong: #c5cfdd;
+      --text: #151b28;
+      --muted: #677489;
+      --soft: #3d4a5d;
+      --accent: #6554dd;
+      --accent-strong: #5141c5;
+      --accent-ink: #fff;
+      --danger: #b83248;
+      --shadow: 0 22px 60px #27364b12;
+    }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--page); }
+    body {
+      min-height: 100vh; margin: 0; color: var(--text);
+      background: radial-gradient(ellipse at 50% -20%, var(--page-glow), transparent 55%), var(--page);
+      background-attachment: fixed;
+      font: 15px/1.55 Inter, "Segoe UI", system-ui, sans-serif;
+      transition: background-color .2s ease, color .2s ease;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .shell { max-width: 1160px; margin: 0 auto; padding: 34px 28px 64px; }
+    .masthead { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    .brand { display: flex; align-items: center; gap: 21px; min-width: 0; }
+    .brand-art { width: 118px; height: 118px; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: #000; box-shadow: var(--shadow); }
+    [data-theme="light"] .brand-art { background: #fff; }
+    .brand-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .brand-copy { max-width: 490px; }
+    .kicker { margin: 0 0 5px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .17em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(25px, 3vw, 36px); line-height: 1.13; letter-spacing: -.045em; }
+    .intro { margin: 9px 0 0; color: var(--muted); font-size: 14px; }
+    .mast-actions { display: flex; align-items: center; gap: 12px; }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 9px; min-height: 42px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--soft); cursor: pointer; transition: .16s ease; }
+    .theme-toggle:hover { border-color: var(--line-strong); color: var(--text); transform: translateY(-1px); }
+    .theme-glyph { color: var(--accent); font-size: 17px; }
+    .status { max-width: 320px; color: var(--muted); font-size: 12px; text-align: right; overflow-wrap: anywhere; }
+    .status:empty { display: none; }
+    .workspace { display: grid; grid-template-columns: minmax(280px, .78fr) minmax(0, 1.5fr); gap: 18px; align-items: stretch; }
+    .panel { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+    .panel-title { margin: 0; font-size: 18px; letter-spacing: -.025em; }
+    .panel-subtitle { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .field { display: block; min-width: 0; margin: 15px 0; }
+    .field-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--soft); font-size: 12px; font-weight: 650; }
+    .input, select { width: 100%; min-height: 46px; padding: 10px 13px; border: 1px solid var(--line-strong); border-radius: 12px; outline: 0; background: var(--surface-input); color: var(--text); transition: border .16s, box-shadow .16s; }
+    .input::placeholder { color: var(--muted); opacity: .75; }
+    .input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+    .input:read-only { color: var(--muted); }
+    .row { display: flex; gap: 12px; align-items: flex-start; }
+    .row > * { flex: 1; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface-raised); color: var(--text); font-size: 13px; font-weight: 650; cursor: pointer; transition: transform .16s ease, border-color .16s ease, filter .16s ease; }
+    .btn:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+    .btn.primary { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color: var(--accent-ink); box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 24%, transparent); }
+    .btn.ghost { background: transparent; }
+    .btn.danger { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
+    .btn:disabled { opacity: .52; cursor: not-allowed; transform: none; }
+    .provider-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .badge { max-width: 100%; overflow: hidden; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-input); color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
+    .form { margin-top: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface-raised); }
+    .form-title { margin: 0 0 3px; font-size: 14px; }
+    .form-help { margin: 0 0 13px; color: var(--muted); font-size: 12px; }
+    .check { display: flex; align-items: center; gap: 9px; margin: 14px 0; color: var(--soft); font-size: 12px; }
+    .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .note { margin: 17px 0 0; color: var(--muted); font-size: 11px; }
+    .model-box { max-height: 310px; min-height: 78px; overflow: auto; margin-top: 9px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-input); }
+    .model-option { padding: 10px 13px; border-bottom: 1px solid var(--line); color: var(--soft); cursor: pointer; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, Consolas, monospace; }
+    .model-option:last-child { border-bottom: 0; }
+    .model-option:hover, .model-option:focus { outline: 0; background: color-mix(in srgb, var(--accent) 11%, var(--surface-input)); color: var(--text); }
+    .hint { min-height: 17px; margin: 7px 2px 0; color: var(--muted); font-size: 11px; }
+    .empty { padding: 17px 14px; color: var(--muted); font-size: 12px; }
+    .divider { height: 1px; margin: 20px 0; background: var(--line); }
+    .run-actions { align-items: center; justify-content: flex-start; margin-top: 21px; }
+    .run-actions .btn { min-width: 138px; }
+    .hidden { display: none !important; }
+    .toast { position: fixed; z-index: 5; right: 24px; bottom: 24px; max-width: min(440px, calc(100vw - 32px)); padding: 13px 16px; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-size: 13px; overflow-wrap: anywhere; }
+    .toast.error { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); color: var(--danger); }
+    .footer { display: flex; justify-content: space-between; gap: 14px; margin-top: 20px; color: var(--muted); font-size: 11px; }
+    @media (max-width: 820px) { .workspace { grid-template-columns: 1fr; } .brand-art { width: 96px; height: 96px; } }
+    @media (max-width: 560px) { .shell { padding: 20px 14px 42px; } .masthead { align-items: flex-start; } .brand { gap: 13px; } .brand-art { width: 72px; height: 72px; border-radius: 16px; } .intro { font-size: 12px; } .mast-actions { flex-direction: column-reverse; align-items: flex-end; gap: 7px; } .theme-toggle { min-height: 38px; padding: 0 10px; font-size: 12px; } .status { max-width: 130px; font-size: 10px; } .panel { padding: 18px; border-radius: 16px; } .row { display: block; } .field { margin: 12px 0; } .footer { flex-direction: column; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand">
+        <div class="brand-art"><img id="brandLogo" src="/assets/CodexAI_black_icon.png" alt="CodexApter logo"></div>
+        <div class="brand-copy">
+          <p class="kicker">Provider studio</p>
+          <h1>CodexApter</h1>
+          <p class="intro">Choose a provider, find a model, and launch Codex with your preferred reasoning level.</p>
+        </div>
+      </div>
+      <div class="mast-actions">
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false"><span id="themeGlyph" class="theme-glyph" aria-hidden="true">☀</span><span id="themeLabel">Light mode</span></button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <section class="panel" aria-labelledby="providerTitle">
+        <div class="panel-head">
+          <div><h2 id="providerTitle" class="panel-title">Provider</h2><p class="panel-subtitle">Manage your API connections</p></div>
+          <button id="addBtn" class="btn ghost" type="button"><span aria-hidden="true">＋</span> Add</button>
+        </div>
+        <label class="field"><span class="field-label">Active provider</span><select id="providerSelect" aria-label="Active provider"></select></label>
+        <div id="providerMeta" class="provider-meta"></div>
+        <div class="actions"><button id="editBtn" class="btn" type="button">Edit selected</button><button id="deleteProvider" class="btn danger" type="button">Delete selected</button></div>
+        <div id="providerForm" class="form hidden">
+          <h3 class="form-title">Connection details</h3>
+          <p class="form-help">Your API key is stored locally and is never shown again.</p>
+          <div class="row">
+            <label class="field"><span class="field-label">Provider ID</span><input class="input" id="providerId" placeholder="agent_router" autocomplete="off" pattern="[a-z0-9][a-z0-9_-]*" title="Lowercase letters, digits, underscores or hyphens; no spaces."><span class="hint">Lowercase, no spaces. Use _ or - between words.</span></label>
+            <label class="field"><span class="field-label">Display name</span><input class="input" id="displayName" placeholder="Agent Router" autocomplete="off"></label>
+          </div>
+          <label class="field"><span class="field-label">Base URL</span><input class="input" id="baseUrl" placeholder="https://provider.example/v1" autocomplete="url"></label>
+          <label class="field"><span class="field-label">API key <span>Optional when editing</span></span><input class="input" id="apiKey" type="password" placeholder="Paste API key" autocomplete="new-password"></label>
+          <label class="check"><input id="discoveryEnabled" type="checkbox" checked> Automatically discover models from <code>/models</code></label>
+          <div class="actions"><button id="saveProvider" class="btn primary" type="button">Save provider</button><button id="cancelEdit" class="btn" type="button">Cancel</button></div>
+        </div>
+        <div class="divider"></div>
+        <p class="note">Provider IDs are internal identifiers; the selector displays your provider's display name.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="modelTitle">
+        <div class="panel-head">
+          <div><h2 id="modelTitle" class="panel-title">Model</h2><p class="panel-subtitle">Search the catalog or enter a model ID directly</p></div>
+          <button id="refreshBtn" class="btn" type="button"><span aria-hidden="true">↻</span> Refresh models</button>
+        </div>
+        <label class="field"><span class="field-label">Model ID</span><input class="input" id="modelInput" placeholder="Start typing to search models…" autocomplete="off" spellcheck="false"></label>
+        <div id="modelList" class="model-box" role="listbox" aria-label="Matching models"></div>
+        <p id="catalogHint" class="hint"></p>
+        <div class="divider"></div>
+        <div class="row">
+          <label class="field"><span class="field-label">Reasoning effort</span><select id="reasoning"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+          <div class="field"><span class="field-label">How this works</span><p class="note">Codex will use the selected provider, model, and reasoning level for your next session.</p></div>
+        </div>
+        <div class="actions run-actions"><button id="saveDefault" class="btn" type="button">Save as default</button><button id="runBtn" class="btn primary" type="button">Run Codex <span aria-hidden="true">→</span></button></div>
+      </section>
+    </div>
+    <footer class="footer"><span>CodexApter · Provider Studio</span><span>API keys stay on this device.</span></footer>
+  </main>
+  <div id="toast" class="toast hidden" role="alert" aria-live="assertive"></div>
+  <script>
+    'use strict';
+    const SESSION_TOKEN = '__SESSION_TOKEN__';
+    const $ = id => document.getElementById(id);
+    let state = {config:{providers:[],secrets:[],defaults:{}},models:[],stale:false,toastTimer:null};
+    function applyTheme(theme) {
+      const selected = theme === 'light' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = selected;
+      const light = selected === 'light';
+      const logo = `/assets/CodexAI_${light ? 'white' : 'black'}_icon.png`;
+      $('brandLogo').src = logo;
+      $('favicon').href = logo;
+      $('themeToggle').setAttribute('aria-pressed', String(light));
+      $('themeLabel').textContent = light ? 'Dark mode' : 'Light mode';
+      $('themeGlyph').textContent = light ? '☾' : '☀';
+      document.querySelector('meta[name="theme-color"]').content = light ? '#f4f6fa' : '#090b10';
+      try { localStorage.setItem('codex-ca-theme', selected); } catch {}
+    }
+    let initialTheme = 'dark';
+    try { initialTheme = localStorage.getItem('codex-ca-theme') || localStorage.getItem('codex-ai-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch {}
+    applyTheme(initialTheme);
+    $('themeToggle').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+    function notify(message,error=false){const el=$('toast');el.textContent=message;el.classList.toggle('error',error);el.classList.remove('hidden');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.add('hidden'),4800);$('status').textContent=message;}
+    async function api(path,options={}){const response=await fetch(path,{...options,headers:{'X-Codex-Apter-Token':SESSION_TOKEN,'Content-Type':'application/json',...(options.headers||{})},cache:'no-store'});let data={};try{data=await response.json()}catch{}if(!response.ok)throw new Error(data.error||`Request failed (${response.status})`);return data;}
+    function selectedProvider(){return state.config.providers.find(p=>p.id===$('providerSelect').value)||null;}
+    function fillProviderSelect(){const select=$('providerSelect');select.replaceChildren();for(const item of state.config.providers){const option=document.createElement('option');option.value=item.id;option.textContent=item.display_name||item.id;select.append(option);}const preferred=state.config.defaults.provider;if(state.config.providers.some(p=>p.id===preferred))select.value=preferred;else if(state.config.providers.length)select.selectedIndex=0;}
+    function showProvider(){const p=selectedProvider();const meta=$('providerMeta');meta.replaceChildren();if(!p){const empty=document.createElement('span');empty.className='empty';empty.textContent='No providers yet. Add one to get started.';meta.append(empty);$('refreshBtn').disabled=true;$('editBtn').disabled=true;$('deleteProvider').disabled=true;return;}for(const text of [p.id,p.base_url,p.protocol==='responses'?'Responses':`Legacy protocol: ${p.protocol}`]){const badge=document.createElement('span');badge.className='badge';badge.textContent=text;meta.append(badge);} $('refreshBtn').disabled=!p.discovery.enabled;$('editBtn').disabled=false;$('deleteProvider').disabled=false;}
+    function renderModels(){const box=$('modelList');box.replaceChildren();const query=$('modelInput').value.trim().toLowerCase();const matches=state.models.filter(model=>model.toLowerCase().includes(query));for(const model of matches){const row=document.createElement('div');row.className='model-option';row.setAttribute('role','option');row.tabIndex=0;row.textContent=model;const choose=()=>{$('modelInput').value=model;renderModels();};row.addEventListener('click',choose);row.addEventListener('keydown',event=>{if(event.key==='Enter'){choose();$('modelInput').focus();}});box.append(row);}if(!matches.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=query?'No catalog match. Pressing Run will use the typed model ID.':'No model catalog loaded. Enter a model ID manually.';box.append(empty);}const p=selectedProvider();$('catalogHint').textContent=state.stale?'Showing a cached catalog that may be out of date.':(p?.discovery.enabled?`${matches.length} matching model${matches.length===1?'':'s'}.`:'This provider has no model discovery; manual model IDs are supported.');}
+    async function loadConfig(){state.config=await api('/api/config');fillProviderSelect();showProvider();const defaults=state.config.defaults||{};$('modelInput').value=defaults.model||'';$('reasoning').value=defaults.reasoning_effort||'medium';await loadModels();}
+    async function loadModels(){const p=selectedProvider();state.models=[];state.stale=false;if(!p){renderModels();return;}try{const result=await api(`/api/models?provider=${encodeURIComponent(p.id)}`);state.models=result.models||[];state.stale=!!result.stale;}catch(error){notify(error.message,true);}renderModels();if(p.discovery.enabled)refreshModels();}
+    function editProvider(){const p=selectedProvider();$('providerForm').classList.remove('hidden');$('providerId').value=p?.id||'';$('providerId').readOnly=!!p;$('displayName').value=p?.display_name||'';$('baseUrl').value=p?.base_url||'';$('apiKey').value='';$('discoveryEnabled').checked=p?.discovery?.enabled??true;}
+    function cancelEdit(){$('providerForm').classList.add('hidden');}
+    async function saveProvider(){const payload={id:$('providerId').value.trim(),display_name:$('displayName').value.trim(),base_url:$('baseUrl').value.trim(),api_key:$('apiKey').value,discovery:$('discoveryEnabled').checked};try{await api('/api/provider',{method:'POST',body:JSON.stringify(payload)});$('apiKey').value='';cancelEdit();await loadConfig();notify('Provider saved.');}catch(error){notify(error.message,true);}}
+    async function removeProvider(){const p=selectedProvider();if(!p)return;if(!confirm(`Delete ${p.display_name||p.id}?`))return;try{await api(`/api/provider?provider=${encodeURIComponent(p.id)}`,{method:'DELETE'});await loadConfig();notify('Provider deleted.');}catch(error){notify(error.message,true);}}
+    async function refreshModels(){const p=selectedProvider();if(!p)return;const button=$('refreshBtn');button.disabled=true;button.innerHTML='Loading…';try{const result=await api('/api/models/refresh',{method:'POST',body:JSON.stringify({provider:p.id})});state.models=result.models||[];state.stale=false;renderModels();notify(`Loaded ${state.models.length} models.`);}catch(error){notify(error.message,true);}finally{button.innerHTML='<span aria-hidden="true">↻</span> Refresh models';button.disabled=!selectedProvider()?.discovery.enabled;}}
+    function selection(){const provider=selectedProvider();const model=$('modelInput').value.trim();if(!provider)throw new Error('Add or select a provider first.');if(!model)throw new Error('Enter or select a model ID.');return {provider:provider.id,model,reasoning:$('reasoning').value};}
+    async function saveDefault(){try{await api('/api/default',{method:'POST',body:JSON.stringify(selection())});state.config.defaults={...state.config.defaults,provider:$('providerSelect').value,model:$('modelInput').value.trim(),reasoning_effort:$('reasoning').value};notify('Default configuration saved.');}catch(error){notify(error.message,true);}}
+    async function runCodex(){try{const data=selection();$('runBtn').disabled=true;$('runBtn').textContent='Starting…';await api('/api/run',{method:'POST',body:JSON.stringify(data)});const main=document.createElement('main');main.className='shell';const panel=document.createElement('section');panel.className='panel';const title=document.createElement('h1');title.textContent='Codex is starting';const message=document.createElement('p');message.textContent='You can close this tab. The local setup service has stopped.';panel.append(title,message);main.append(panel);document.body.replaceChildren(main);setTimeout(()=>window.close(),100);}catch(error){$('runBtn').disabled=false;$('runBtn').innerHTML='Run Codex <span aria-hidden="true">→</span>';notify(error.message,true);}}
+    $('providerSelect').addEventListener('change',()=>{showProvider();loadModels();});$('modelInput').addEventListener('input',renderModels);$('addBtn').addEventListener('click',()=>{$('providerSelect').selectedIndex=-1;showProvider();editProvider();$('providerId').readOnly=false;});$('editBtn').addEventListener('click',editProvider);$('saveProvider').addEventListener('click',saveProvider);$('cancelEdit').addEventListener('click',cancelEdit);$('refreshBtn').addEventListener('click',refreshModels);$('saveDefault').addEventListener('click',saveDefault);$('runBtn').addEventListener('click',runCodex);$('deleteProvider').addEventListener('click',removeProvider);loadConfig().catch(error=>notify(error.message,true));
+  </script>
+</body>
+</html>

@@ -18,7 +18,7 @@ def probe_responses(config: Config, provider: Provider, model: str, *, timeout: 
     except Exception as exc:
         return f"SKIP: credentials unavailable ({exc})."
 
-    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "codex-ai/0.1"}
+    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     body = json.dumps({"model": model, "input": "Reply with exactly: pong", "stream": False, "max_output_tokens": 16}).encode("utf-8")

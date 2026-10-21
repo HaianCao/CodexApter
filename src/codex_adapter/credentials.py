@@ -10,14 +10,11 @@ from .errors import CredentialError
 
 def env_file_path(config: Config | None = None) -> Path:
     configured = config.env_file if config else None
-    override = os.environ.get("CODEX_AI_ENV_FILE")
+    override = os.environ.get("CODEX_CA_ENV_FILE")
     if override:
         return Path(override).expanduser()
     if configured:
         return configured.expanduser()
-    source_root = Path(__file__).resolve().parents[2]
-    if (source_root / "pyproject.toml").is_file():
-        return source_root / ".env"
     stable_config_path = config.path if config and config.path else config_path()
     return stable_config_path.expanduser().parent / ".env"
 
