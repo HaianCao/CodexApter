@@ -108,27 +108,45 @@ try {
         throw 'Codex installer completed, but codex.exe was not found. Open a new terminal and verify the official Codex installation before rerunning setup.'
     }
 
-    Write-Step 'Installing codex-ai in a dedicated user Python environment'
     $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\codex-ai'
     $venv = Join-Path $installRoot 'venv'
     $venvPython = Join-Path $venv 'Scripts\python.exe'
+    $codexAiExe = Join-Path $venv 'Scripts\codex-ai.exe'
+    $isUpdate = Test-Path -LiteralPath $codexAiExe
+    if ($isUpdate) {
+        Write-Step 'Updating codex-ai in the existing user Python environment'
+    }
+    else {
+        Write-Step 'Installing codex-ai in a dedicated user Python environment'
+    }
     if (-not (Test-Path -LiteralPath $venvPython)) {
         New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
         & $pythonExe -m venv $venv
         if ($LASTEXITCODE -ne 0) { throw 'Could not create the codex-ai Python environment.' }
     }
-    # Install from the local checkout; an editable build is unnecessary for end users.
-    & $venvPython -m pip install --disable-pip-version-check --upgrade $repoRoot
+    # Force reinstall so source changes are applied even if pyproject.toml still has the same version.
+    & $venvPython -m pip install --disable-pip-version-check --force-reinstall --no-deps $repoRoot
     if ($LASTEXITCODE -ne 0) { throw 'Installing codex-ai failed. Check the Python/pip output and rerun this setup file.' }
     $venvScripts = Join-Path $venv 'Scripts'
     Add-UserPath $venvScripts
 
-    Write-Step 'Launching codex-ai setup'
-    & (Join-Path $venvScripts 'codex-ai.exe') setup
-    if ($LASTEXITCODE -ne 0) { throw "The setup page exited with code $LASTEXITCODE." }
+    if ($isUpdate) {
+        Write-Host 'codex-ai has been updated. Your existing provider configuration and API keys were left unchanged.' -ForegroundColor Green
+        Write-Host 'Run codex-ai setup if you want to review or change your settings.'
+    }
+    else {
+        Write-Step 'Launching codex-ai setup'
+        & $codexAiExe setup
+        if ($LASTEXITCODE -ne 0) { throw "The setup page exited with code $LASTEXITCODE." }
+    }
 
-    Write-Host "`nInstallation complete. Open a new CMD, PowerShell, or Windows Terminal tab before using codex-ai globally." -ForegroundColor Green
-    Write-Host 'You can rerun this script later to update codex-ai.'
+    if ($isUpdate) {
+        Write-Host "`ncodex-ai update complete. Open a new CMD, PowerShell, or Windows Terminal tab to use the updated command." -ForegroundColor Green
+        Write-Host 'The Codex CLI itself was not updated.'
+    }
+    else {
+        Write-Host "`ncodex-ai installation complete. Open a new CMD, PowerShell, or Windows Terminal tab to use the command." -ForegroundColor Green
+    }
 }
 catch {
     Write-Host "`nSetup failed: $($_.Exception.Message)" -ForegroundColor Red

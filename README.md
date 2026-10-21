@@ -12,6 +12,8 @@ Run this in PowerShell to download and install directly from GitHub without clon
 
 The installer downloads the project source and installs the required tools for your Windows account, then opens the configuration page. Add your provider and API key there. Open a new terminal when setup finishes so it can find `codex-ai` on PATH. You can also run `scripts/install.ps1` from a local checkout.
 
+Run the same command again any time to update `codex-ai` to the latest code on GitHub. Updates keep your existing configuration and API keys; the setup page opens only on first installation. This does not update the Codex CLI itself. An older installed `codex-ai` keeps working if you do not update.
+
 Requirements: Windows 10/11 and an internet connection. If Python 3.11+ is missing, the script uses `winget` to install it. The script does not require administrator access or change the system-wide PATH.
 
 ## Configure
