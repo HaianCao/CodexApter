@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codex-multi-provider"
+version = "0.1.0"
+description = "Configuration-driven multi-provider launcher for Codex CLI"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+codex-ai = "codex_adapter.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codex_adapter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

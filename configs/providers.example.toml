@@ -1,0 +1,26 @@
+schema_version = 1
+
+[defaults]
+provider = "agentrouter"
+model = "deepseek-v4-flash"
+reasoning_effort = "medium"
+execution_mode = "direct"
+
+[providers.agentrouter]
+display_name = "AgentRouter"
+base_url = "https://agentrouter.org/v1"
+auth_secret_ref = "agentrouter-main"
+protocol = "responses"
+execution_mode = "direct"
+default_model = "deepseek-v4-flash"
+
+[providers.agentrouter.model_discovery]
+enabled = true
+path = "/models"
+method = "GET"
+response_format = "openai_models_list"
+cache_ttl_seconds = 3600
+
+[secrets.agentrouter-main]
+backend = "environment"
+env_var = "AGENT_ROUTER_TOKEN"
