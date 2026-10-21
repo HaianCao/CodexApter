@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+$sourceTempRoot = $null
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
@@ -38,15 +39,38 @@ function Add-UserPath([string]$Directory) {
 }
 
 try {
-    $repoRoot = Split-Path -Parent $PSScriptRoot
-    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'pyproject.toml'))) {
-        throw 'Could not find pyproject.toml. Run this script from the project checkout; keep the scripts folder in place.'
+    $repoRoot = $null
+    if ($PSScriptRoot) {
+        $candidate = Split-Path -Parent $PSScriptRoot
+        if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
+    }
+    if (-not $repoRoot) {
+        $candidate = (Get-Location).Path
+        if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
     }
 
-    Write-Host 'This setup installs Codex CLI and codex-ai for your Windows user only.' -ForegroundColor White
+    Write-Host 'This installer installs Codex CLI and codex-ai for your Windows user only.' -ForegroundColor White
     Write-Host 'It may download Python and software from the official Codex installer. It does not request administrator access.'
+    if (-not $repoRoot) { Write-Host 'The codex-ai source will be downloaded from the project GitHub repository.' }
     Write-Host 'At the end, the local setup page will ask you to configure provider details and API keys.'
     if ((Read-Host 'Continue? [y/N]') -notmatch '^(y|yes)$') { return }
+
+    if (-not $repoRoot) {
+        Write-Step 'Downloading codex-ai source from GitHub'
+        $sourceTempRoot = Join-Path ([IO.Path]::GetTempPath()) ("codex-ai-source-{0}" -f [guid]::NewGuid())
+        $archivePath = "$sourceTempRoot.zip"
+        New-Item -ItemType Directory -Path $sourceTempRoot -Force | Out-Null
+        try {
+            Invoke-WebRequest -Uri 'https://github.com/HaianCao/free-codex-cli/archive/refs/heads/main.zip' -OutFile $archivePath
+            Expand-Archive -LiteralPath $archivePath -DestinationPath $sourceTempRoot -Force
+        }
+        finally {
+            Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue
+        }
+        $projectFile = Get-ChildItem -LiteralPath $sourceTempRoot -Filter 'pyproject.toml' -File -Recurse | Select-Object -First 1
+        if (-not $projectFile) { throw 'Downloaded repository does not contain pyproject.toml.' }
+        $repoRoot = $projectFile.Directory.FullName
+    }
 
     Write-Step 'Checking Python 3.11 or newer'
     $pythonExe = Get-SupportedPython
@@ -109,4 +133,9 @@ try {
 catch {
     Write-Host "`nSetup failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
+}
+finally {
+    if ($sourceTempRoot -and (Test-Path -LiteralPath $sourceTempRoot)) {
+        Remove-Item -LiteralPath $sourceTempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }

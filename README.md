@@ -4,13 +4,13 @@
 
 ## Install on Windows
 
-From a local checkout, run this in PowerShell:
+Run this in PowerShell to download and install directly from GitHub without cloning the repository:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/free-codex-cli/main/scripts/install.ps1")))
 ```
 
-The installer sets up the required tools for your Windows account, then opens the configuration page. Add your provider and API key there. Open a new terminal when setup finishes so it can find `codex-ai` on PATH. Once the repository is published, this can also be launched directly from GitHub without cloning; the exact command depends on the repository URL.
+The installer downloads the project source and installs the required tools for your Windows account, then opens the configuration page. Add your provider and API key there. Open a new terminal when setup finishes so it can find `codex-ai` on PATH. You can also run `scripts/install.ps1` from a local checkout.
 
 Requirements: Windows 10/11 and an internet connection. If Python 3.11+ is missing, the script uses `winget` to install it. The script does not require administrator access or change the system-wide PATH.
 
