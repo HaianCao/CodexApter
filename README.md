@@ -59,3 +59,9 @@ Configuration is saved under `%APPDATA%\codex-ai`; API keys are stored in a loca
 python -m pip install -e ".[test]"
 python -m pytest
 ```
+
+The test suite runs automatically on Windows for pushes and pull requests. It checks the Python package and parses the installer/uninstaller with both Windows PowerShell 5.1 and PowerShell 7.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

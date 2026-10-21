@@ -26,6 +26,25 @@ else {
     Write-Host 'No codex-ai installation from this installer was found.'
 }
 
+# Older releases could be installed with pipx. Remove that copy only after an
+# explicit confirmation so uninstalling the managed venv does not expose a
+# stale command unexpectedly.
+$pipx = Get-Command pipx -ErrorAction SilentlyContinue
+if ($pipx) {
+    try {
+        $pipxState = (& $pipx.Source list --json 2>$null | Out-String) | ConvertFrom-Json
+        $legacyPackage = $pipxState.venvs.PSObject.Properties.Name -contains 'codex-multi-provider'
+        if ($legacyPackage -and (Read-Host 'A legacy pipx copy of codex-ai was found. Remove it too? [y/N]') -match '^(y|yes)$') {
+            & $pipx.Source uninstall codex-multi-provider
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not remove the legacy pipx package. Remove it later with: pipx uninstall codex-multi-provider' }
+            else { Write-Host 'Removed the legacy pipx package.' }
+        }
+    }
+    catch {
+        Write-Warning 'Could not inspect pipx for an older codex-ai installation.'
+    }
+}
+
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $keptEntries = @($userPath -split ';' | Where-Object {
     $_ -and $_.TrimEnd('\') -ine $venvScripts.TrimEnd('\')

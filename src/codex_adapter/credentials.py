@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -41,7 +42,14 @@ def _read_dotenv(path: Path) -> dict[str, str]:
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
                 value = value.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                if value.startswith('"'):
+                    try:
+                        decoded = json.loads(value)
+                        if isinstance(decoded, str):
+                            value = decoded
+                    except json.JSONDecodeError:
+                        pass
+                elif len(value) >= 2 and value[0] == value[-1] == "'":
                     value = value[1:-1]
                 values[key.strip()] = value
     except FileNotFoundError:
@@ -58,5 +66,18 @@ def store_token(env_var: str, token: str, path: Path | None = None, *, config: C
     target = path or env_file_path(config)
     values = _read_dotenv(target)
     values[env_var] = token
-    target.write_text("".join(f"{key}={value}\n" for key, value in sorted(values.items())), encoding="utf-8")
+    target.write_text("".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())), encoding="utf-8")
     os.environ[env_var] = token
+
+
+def remove_token(env_var: str, path: Path | None = None, *, config: Config | None = None) -> None:
+    """Remove one API key from the configured dotenv file and current process."""
+    target = path or env_file_path(config)
+    values = _read_dotenv(target)
+    values.pop(env_var, None)
+    if target.exists():
+        if values:
+            target.write_text("".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())), encoding="utf-8")
+        else:
+            target.unlink()
+    os.environ.pop(env_var, None)

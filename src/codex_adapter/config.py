@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+import json
+import tempfile
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +15,7 @@ from .errors import ConfigError
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _PROTOCOLS = {"responses"}
 _MODES = {"auto", "direct"}
+_REASONING_EFFORTS = {"low", "medium", "high"}
 
 
 def config_path() -> Path:
@@ -117,6 +120,31 @@ def _string(value: Any, field_name: str, required: bool = False) -> str | None:
     return value.strip()
 
 
+def _table(value: Any, field_name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ConfigError(f"'{field_name}' must be a TOML table.")
+    return value
+
+
+def _boolean(value: Any, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(f"'{field_name}' must be true or false.")
+    return value
+
+
+def _positive_integer(value: Any, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigError(f"'{field_name}' must be a positive integer.")
+    return value
+
+
+def _reasoning_effort(value: Any, field_name: str) -> str:
+    effort = _string(value, field_name, required=True)
+    if effort not in _REASONING_EFFORTS:
+        raise ConfigError(f"'{field_name}' must be low, medium, or high.")
+    return effort
+
+
 def _check_id(value: str, label: str) -> None:
     if not _ID.fullmatch(value):
         raise ConfigError(f"{label} '{value}' may contain only lowercase letters, digits, '_' and '-'.")
@@ -144,36 +172,42 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
             raw = tomllib.load(handle)
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"Invalid TOML in {source}: {exc}") from exc
-    if raw.get("schema_version", 1) != 1:
+    except OSError as exc:
+        raise ConfigError(f"Could not read configuration {source}: {exc}") from exc
+    schema_version = raw.get("schema_version", 1)
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version != 1:
         raise ConfigError("Unsupported schema_version.")
-    defaults_raw = raw.get("defaults", {})
+    defaults_raw = _table(raw.get("defaults", {}), "defaults")
+    secrets_raw = _table(raw.get("secrets", {}), "secrets")
+    providers_raw = _table(raw.get("providers", {}), "providers")
+    models_raw = _table(raw.get("models", {}), "models")
+    reasoning_effort = _reasoning_effort(defaults_raw.get("reasoning_effort", "medium"), "defaults.reasoning_effort")
+    execution_mode = _string(defaults_raw.get("execution_mode", "auto"), "defaults.execution_mode", required=True)
+    if execution_mode not in _MODES:
+        raise ConfigError("defaults.execution_mode must be auto or direct.")
     defaults = Defaults(
         provider=_string(defaults_raw.get("provider"), "defaults.provider"),
         model=_string(defaults_raw.get("model"), "defaults.model"),
-        reasoning_effort=str(defaults_raw.get("reasoning_effort", "medium")),
-        execution_mode=str(defaults_raw.get("execution_mode", "auto")),
+        reasoning_effort=reasoning_effort,
+        execution_mode=execution_mode,
     )
-    if defaults.execution_mode not in _MODES:
-        raise ConfigError("defaults.execution_mode must be auto or direct.")
     secrets: dict[str, SecretReference] = {}
-    for name, item in raw.get("secrets", {}).items():
+    for name, item in secrets_raw.items():
         _check_id(name, "Secret reference")
-        if not isinstance(item, dict):
-            raise ConfigError(f"secrets.{name} must be a table.")
-        backend = str(item.get("backend", "environment"))
+        item = _table(item, f"secrets.{name}")
+        backend = _string(item.get("backend", "environment"), f"secrets.{name}.backend", required=True)
         env_var = _string(item.get("env_var"), f"secrets.{name}.env_var")
         if backend != "environment" or not env_var:
             raise ConfigError(f"secrets.{name} currently supports backend='environment' with env_var.")
         secrets[name] = SecretReference(name, backend, env_var)
     providers: dict[str, Provider] = {}
-    for name, item in raw.get("providers", {}).items():
+    for name, item in providers_raw.items():
         _check_id(name, "Provider")
-        if not isinstance(item, dict):
-            raise ConfigError(f"providers.{name} must be a table.")
+        item = _table(item, f"providers.{name}")
         base_url = _string(item.get("base_url"), f"providers.{name}.base_url", True)
         base_url = validate_base_url(base_url)
-        protocol = str(item.get("protocol", "responses"))
-        mode = str(item.get("execution_mode", "direct"))
+        protocol = _string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True)
+        mode = _string(item.get("execution_mode", "direct"), f"providers.{name}.execution_mode", required=True)
         legacy_protocols = {"chat_completions", "anthropic_messages"} if allow_legacy_protocols else set()
         legacy_modes = {"gateway"} if allow_legacy_protocols else set()
         if protocol not in (_PROTOCOLS | legacy_protocols) or mode not in (_MODES | legacy_modes):
@@ -182,27 +216,27 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         if secret_ref and secret_ref not in secrets:
             raise ConfigError(f"providers.{name} references missing secret '{secret_ref}'.")
         discovery_raw = item.get("model_discovery", {})
-        if not isinstance(discovery_raw, dict):
-            raise ConfigError(f"providers.{name}.model_discovery must be a table.")
+        discovery_raw = _table(discovery_raw, f"providers.{name}.model_discovery")
         discovery = Discovery(
-            enabled=bool(discovery_raw.get("enabled", False)),
-            path=str(discovery_raw.get("path", "/models")),
-            method=str(discovery_raw.get("method", "GET")).upper(),
-            response_format=str(discovery_raw.get("response_format", "openai_models_list")),
-            cache_ttl_seconds=int(discovery_raw.get("cache_ttl_seconds", 3600)),
+            enabled=_boolean(discovery_raw.get("enabled", False), f"providers.{name}.model_discovery.enabled"),
+            path=_string(discovery_raw.get("path", "/models"), f"providers.{name}.model_discovery.path", required=True),
+            method=_string(discovery_raw.get("method", "GET"), f"providers.{name}.model_discovery.method", required=True).upper(),
+            response_format=_string(discovery_raw.get("response_format", "openai_models_list"), f"providers.{name}.model_discovery.response_format", required=True),
+            cache_ttl_seconds=_positive_integer(discovery_raw.get("cache_ttl_seconds", 3600), f"providers.{name}.model_discovery.cache_ttl_seconds"),
         )
-        if discovery.method != "GET" or not discovery.path.startswith("/") or "://" in discovery.path:
+        if discovery.method != "GET" or discovery.response_format != "openai_models_list" or not discovery.path.startswith("/") or "://" in discovery.path:
             raise ConfigError(f"providers.{name}.model_discovery only permits a relative GET path.")
-        providers[name] = Provider(name, str(item.get("display_name", name)), base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery)
+        display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
+        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery)
     models: dict[str, ModelAlias] = {}
-    for name, item in raw.get("models", {}).items():
+    for name, item in models_raw.items():
         _check_id(name, "Model alias")
-        if not isinstance(item, dict):
-            raise ConfigError(f"models.{name} must be a table.")
+        item = _table(item, f"models.{name}")
         provider = _string(item.get("provider"), f"models.{name}.provider", True)
         if provider not in providers:
             raise ConfigError(f"models.{name} references missing provider '{provider}'.")
-        models[name] = ModelAlias(name, provider, _string(item.get("model_id"), f"models.{name}.model_id", True), _string(item.get("reasoning_effort"), f"models.{name}.reasoning_effort"))
+        alias_reasoning = item.get("reasoning_effort")
+        models[name] = ModelAlias(name, provider, _string(item.get("model_id"), f"models.{name}.model_id", True), _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None)
     configured_env_file = _string(raw.get("env_file"), "env_file")
     config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None)
     if defaults.provider and defaults.provider not in providers:
@@ -211,7 +245,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
 
 
 def _quote(value: str) -> str:
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    # JSON string escapes are a compatible subset of TOML basic-string escapes.
+    return json.dumps(value, ensure_ascii=False)
 
 
 def save(config: Config, path: Path | None = None) -> Path:
@@ -237,5 +272,18 @@ def save(config: Config, path: Path | None = None) -> Path:
         if alias.reasoning_effort:
             lines.append(f"reasoning_effort = {_quote(alias.reasoning_effort)}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    content = "\n".join(lines) + "\n"
+    temporary: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False) as handle:
+            temporary = handle.name
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, target)
+    except OSError as exc:
+        raise ConfigError(f"Could not save configuration {target}: {exc}") from exc
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
     return target

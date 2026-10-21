@@ -8,11 +8,15 @@ function Write-Step([string]$Message) {
 function Get-SupportedPython {
     $py = Get-Command py -ErrorAction SilentlyContinue
     if ($py) {
-        foreach ($version in @('3.13', '3.12', '3.11')) {
-            & $py.Source "-$version" -c 'import sys; print(sys.executable)' 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                $pythonPath = (& $py.Source "-$version" -c 'import sys; print(sys.executable)').Trim()
-                if ($pythonPath) { return $pythonPath }
+        $installed = & $py.Source -0p 2>$null
+        foreach ($line in $installed) {
+            $match = [regex]::Match([string]$line, '^\s*-\S+\s+(?:\*\s+)?(.+?pythonw?\.exe)\s*$', 'IgnoreCase')
+            if ($match.Success) {
+                $pythonPath = $match.Groups[1].Value.Trim()
+                if (Test-Path -LiteralPath $pythonPath) {
+                    & $pythonPath -c 'import sys; raise SystemExit(sys.version_info < (3, 11))' 2>$null
+                    if ($LASTEXITCODE -eq 0) { return $pythonPath }
+                }
             }
         }
     }
@@ -30,7 +34,7 @@ function Add-UserPath([string]$Directory) {
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
     $entries = @($current -split ';' | Where-Object { $_ })
     if (-not ($entries | Where-Object { $_.TrimEnd('\') -ieq $Directory.TrimEnd('\') })) {
-        $entries += $Directory
+        $entries = @($Directory) + $entries
         [Environment]::SetEnvironmentVariable('Path', ($entries -join ';'), 'User')
     }
     if (-not (($env:Path -split ';') | Where-Object { $_.TrimEnd('\') -ieq $Directory.TrimEnd('\') })) {
@@ -61,7 +65,7 @@ try {
         $archivePath = "$sourceTempRoot.zip"
         New-Item -ItemType Directory -Path $sourceTempRoot -Force | Out-Null
         try {
-            Invoke-WebRequest -Uri 'https://github.com/HaianCao/free-codex-cli/archive/refs/heads/main.zip' -OutFile $archivePath
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/HaianCao/free-codex-cli/archive/refs/heads/main.zip' -OutFile $archivePath
             Expand-Archive -LiteralPath $archivePath -DestinationPath $sourceTempRoot -Force
         }
         finally {
@@ -94,7 +98,7 @@ try {
     if (-not $codexCommand) {
         $installerPath = Join-Path ([IO.Path]::GetTempPath()) ("codex-install-{0}.ps1" -f [guid]::NewGuid())
         try {
-            Invoke-WebRequest -Uri 'https://chatgpt.com/codex/install.ps1' -OutFile $installerPath
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://chatgpt.com/codex/install.ps1' -OutFile $installerPath
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installerPath
             if ($LASTEXITCODE -ne 0) { throw "Official Codex installer failed (exit code $LASTEXITCODE)." }
         }
@@ -125,7 +129,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Could not create the codex-ai Python environment.' }
     }
     # Force reinstall so source changes are applied even if pyproject.toml still has the same version.
-    & $venvPython -m pip install --disable-pip-version-check --force-reinstall --no-deps $repoRoot
+    & $venvPython -m pip install --disable-pip-version-check --force-reinstall $repoRoot
     if ($LASTEXITCODE -ne 0) { throw 'Installing codex-ai failed. Check the Python/pip output and rerun this setup file.' }
     $venvScripts = Join-Path $venv 'Scripts'
     Add-UserPath $venvScripts

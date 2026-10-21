@@ -1,10 +1,11 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from codex_adapter.config import Config, Defaults, Discovery, ModelAlias, Provider, SecretReference, load, save, validate_base_url
-from codex_adapter.credentials import env_file_path, resolve_token, store_token
+from codex_adapter.credentials import env_file_path, remove_token, resolve_token, store_token
 from codex_adapter.errors import ConfigError
 
 
@@ -51,7 +52,28 @@ class ConfigTests(unittest.TestCase):
                 store_token("DEMO_API_TOKEN", "sample-token", config=config)
                 os.environ.pop("DEMO_API_TOKEN", None)
                 self.assertEqual(resolve_token(config, config.providers["demo"]), "sample-token")
-                self.assertEqual(env_path.read_text(encoding="utf-8"), "DEMO_API_TOKEN=sample-token\n")
+                self.assertEqual(env_path.read_text(encoding="utf-8"), 'DEMO_API_TOKEN="sample-token"\n')
+
+    def test_dotenv_round_trips_quoted_api_keys_and_removes_only_selected_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            config = Config(env_file=env_path)
+            token = '  key="quoted"  '
+            store_token("DEMO_TOKEN", token, config=config)
+            store_token("OTHER_TOKEN", "keep-me", config=config)
+            os.environ.pop("DEMO_TOKEN", None)
+            self.assertEqual(resolve_token(
+                Config(
+                    providers={"demo": Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")},
+                    secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_TOKEN")},
+                    env_file=env_path,
+                ),
+                Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key"),
+            ), token)
+            remove_token("DEMO_TOKEN", config=config)
+            self.assertNotIn("DEMO_TOKEN", env_path.read_text(encoding="utf-8"))
+            self.assertIn('OTHER_TOKEN="keep-me"', env_path.read_text(encoding="utf-8"))
+            self.assertNotIn("DEMO_TOKEN", os.environ)
 
     def test_env_file_environment_override_wins_over_saved_path(self):
         configured = Path("configured.env")
@@ -90,6 +112,56 @@ execution_mode = "gateway"
             config = load(path, allow_legacy_protocols=True)
             self.assertEqual(config.providers["nim"].display_name, "NVIDIA NIM")
             self.assertEqual(config.providers["nim"].protocol, "chat_completions")
+
+    def test_invalid_toml_table_shapes_raise_config_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.toml"
+            path.write_text('defaults = "not-a-table"\n', encoding="utf-8")
+            with self.assertRaises(ConfigError):
+                load(path)
+
+    def test_invalid_discovery_types_and_ttl_raise_config_error(self):
+        examples = (
+            'enabled = "false"\n',
+            'cache_ttl_seconds = 0\n',
+            'cache_ttl_seconds = true\n',
+        )
+        for setting in examples:
+            with self.subTest(setting=setting), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "invalid.toml"
+                path.write_text(
+                    """schema_version = 1
+[providers.demo]
+base_url = "https://example.test/v1"
+[providers.demo.model_discovery]
+""" + setting,
+                    encoding="utf-8",
+                )
+                with self.assertRaises(ConfigError):
+                    load(path)
+
+    def test_invalid_default_reasoning_effort_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.toml"
+            path.write_text('[defaults]\nreasoning_effort = "extreme"\n', encoding="utf-8")
+            with self.assertRaises(ConfigError):
+                load(path)
+
+    def test_schema_version_must_be_integer_one(self):
+        for value in ('true', '1.0', '"1"', '2'):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "invalid.toml"
+                path.write_text(f"schema_version = {value}\n", encoding="utf-8")
+                with self.assertRaises(ConfigError):
+                    load(path)
+
+    def test_save_round_trips_control_characters_in_display_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            label = 'Demo\t"quoted"\\provider'
+            config = Config(providers={"demo": Provider("demo", label, "https://example.test/v1")})
+            save(config, path)
+            self.assertEqual(load(path).providers["demo"].display_name, label)
 
 if __name__ == "__main__":
     unittest.main()

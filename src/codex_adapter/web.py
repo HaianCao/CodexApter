@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import secrets
 import threading
@@ -10,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .catalog import cached_models, fetch_models
 from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url
-from .credentials import env_file_path, store_token
+from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
 from .launcher import start
 
@@ -40,6 +41,21 @@ def _validate_provider_id(value: str) -> None:
 
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", value):
         raise ConfigError("Provider ID must use lowercase letters, digits, '_' or '-'.")
+
+
+def _remove_provider_config(config: Config, provider_id: str) -> str | None:
+    provider = config.providers[provider_id]
+    secret_ref = provider.auth_secret_ref
+    del config.providers[provider_id]
+    if config.defaults.provider == provider_id:
+        config.defaults.provider = config.defaults.model = None
+    for alias in [name for name, model in config.models.items() if model.provider == provider_id]:
+        del config.models[alias]
+    if secret_ref and not any(item.auth_secret_ref == secret_ref for item in config.providers.values()):
+        secret = config.secrets.pop(secret_ref, None)
+        if secret and secret.env_var and not any(item.env_var == secret.env_var for item in config.secrets.values()):
+            return secret.env_var
+    return None
 
 
 def serve(config: Config) -> int:
@@ -201,12 +217,23 @@ def serve(config: Config) -> int:
             if provider_id not in config.providers:
                 self._json({"error": "Unknown provider"}, HTTPStatus.NOT_FOUND)
                 return
-            del config.providers[provider_id]
-            if config.defaults.provider == provider_id:
-                config.defaults.provider = config.defaults.model = None
-            for alias in [name for name, model in config.models.items() if model.provider == provider_id]:
-                del config.models[alias]
-            save(config)
+            updated_config = copy.deepcopy(config)
+            env_var_to_remove = _remove_provider_config(updated_config, provider_id)
+            try:
+                save(updated_config)
+            except (OSError, ConfigError) as exc:
+                self._json({"error": f"Could not save provider changes: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
+            config.providers = updated_config.providers
+            config.secrets = updated_config.secrets
+            config.models = updated_config.models
+            config.defaults = updated_config.defaults
+            if env_var_to_remove:
+                try:
+                    remove_token(env_var_to_remove, config=config)
+                except OSError:
+                    self._json({"error": "Provider was removed, but its saved API key could not be deleted from the .env file."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
             self._json(public_config(config))
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
