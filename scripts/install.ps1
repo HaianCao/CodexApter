@@ -1,3 +1,4 @@
+param([switch]$SkipCodexInstall, [switch]$NonInteractive)
 $ErrorActionPreference = 'Stop'
 $sourceTempRoot = $null
 
@@ -67,7 +68,7 @@ try {
     Write-Host 'It may download Python and software from the official Codex installer. It does not request administrator access.'
     if (-not $repoRoot) { Write-Host 'The CodexApter source will be downloaded from the project GitHub repository.' }
     Write-Host 'After installation, run codex-ca setup whenever you are ready to configure a provider and API key.'
-    if ((Read-Host 'Continue? [y/N]') -notmatch '^(y|yes)$') { return }
+    if (-not $NonInteractive -and (Read-Host 'Continue? [y/N]') -notmatch '^(y|yes)$') { return }
 
     if (-not $repoRoot) {
         Write-Step 'Downloading CodexApter source from GitHub'
@@ -105,7 +106,7 @@ try {
 
     Write-Step 'Installing the official Codex CLI'
     $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
-    if (-not $codexCommand) {
+    if (-not $codexCommand -and -not $SkipCodexInstall) {
         $installerPath = Join-Path ([IO.Path]::GetTempPath()) ("codex-install-{0}.ps1" -f [guid]::NewGuid())
         try {
             Invoke-WebRequest -UseBasicParsing -Uri 'https://chatgpt.com/codex/install.ps1' -OutFile $installerPath
@@ -118,7 +119,7 @@ try {
     }
     $codexBin = Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin'
     Add-UserPath $codexBin
-    if (-not (Get-Command codex -ErrorAction SilentlyContinue) -and -not (Test-Path (Join-Path $codexBin 'codex.exe'))) {
+    if (-not $SkipCodexInstall -and -not (Get-Command codex -ErrorAction SilentlyContinue) -and -not (Test-Path (Join-Path $codexBin 'codex.exe'))) {
         throw 'Codex installer completed, but codex.exe was not found. Open a new terminal and verify the official Codex installation before rerunning setup.'
     }
 
@@ -167,7 +168,7 @@ try {
         try {
             $pipxState = (& $pipx.Source list --json 2>$null | Out-String) | ConvertFrom-Json
             if ($pipxState.venvs.PSObject.Properties.Name -contains 'codex-multi-provider') {
-                if ((Read-Host 'A legacy pipx codex-ai wrapper was found. Remove that old wrapper too? [y/N]') -match '^(y|yes)$') {
+                if (-not $NonInteractive -and (Read-Host 'A legacy pipx codex-ai wrapper was found. Remove that old wrapper too? [y/N]') -match '^(y|yes)$') {
                     & $pipx.Source uninstall codex-multi-provider
                     if ($LASTEXITCODE -ne 0) { Write-Warning 'The old pipx wrapper was not removed. It can be removed later with: pipx uninstall codex-multi-provider' }
                     else { Write-Host 'Removed the old pipx wrapper; Codex CLI and provider data were preserved.' }

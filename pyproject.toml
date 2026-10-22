@@ -7,6 +7,7 @@ name = "codexapter"
 version = "0.1.0"
 description = "Configuration-driven multi-provider launcher for Codex CLI"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = []
 
 [project.optional-dependencies]

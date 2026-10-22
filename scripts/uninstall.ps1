@@ -1,3 +1,4 @@
+param([switch]$NonInteractive)
 $ErrorActionPreference = 'Stop'
 
 # Remove both the current wrapper and the previous codex-ai wrapper, if present.
@@ -13,7 +14,7 @@ $legacyCacheRoot = Join-Path $env:LOCALAPPDATA 'codex-ai'
 
 Write-Host 'This removes CodexApter and its old codex-ai wrapper, if present.' -ForegroundColor Cyan
 Write-Host 'It does not remove the Codex CLI or your provider configuration/API keys.'
-if ((Read-Host 'Continue? Type Y to uninstall CodexApter') -notmatch '^(y|yes)$') {
+if (-not $NonInteractive -and (Read-Host 'Continue? Type Y to uninstall CodexApter') -notmatch '^(y|yes)$') {
     Write-Host 'Uninstall cancelled.'
     return
 }
@@ -46,7 +47,7 @@ if ($pipx) {
         $pipxState = (& $pipx.Source list --json 2>$null | Out-String) | ConvertFrom-Json
         $installedPackages = @($pipxState.venvs.PSObject.Properties.Name)
         foreach ($packageName in @('codexapter', 'codex-multi-provider')) {
-            if (($installedPackages -contains $packageName) -and (Read-Host "A pipx copy of $packageName was found. Remove it too? [y/N]") -match '^(y|yes)$') {
+            if (($installedPackages -contains $packageName) -and -not $NonInteractive -and (Read-Host "A pipx copy of $packageName was found. Remove it too? [y/N]") -match '^(y|yes)$') {
                 & $pipx.Source uninstall $packageName
                 if ($LASTEXITCODE -ne 0) { Write-Warning "Could not remove $packageName. Remove it later with: pipx uninstall $packageName" }
                 else { Write-Host "Removed $packageName from pipx." }
@@ -74,7 +75,7 @@ if ($keptEntries.Count -ne @($userPath -split ';' | Where-Object { $_ }).Count) 
 Write-Host "`nThe default configuration and API keys will be preserved at: $configRoot" -ForegroundColor Yellow
 if (Test-Path -LiteralPath $legacyConfigRoot) { Write-Host "Legacy configuration (if not migrated) is at: $legacyConfigRoot" -ForegroundColor Yellow }
 Write-Host 'Custom paths set through CODEX_CA_CONFIG or CODEX_CA_ENV_FILE are not modified.'
-if ((Read-Host 'Also permanently delete this configuration, API keys, and model cache? Type DELETE') -ceq 'DELETE') {
+if (-not $NonInteractive -and (Read-Host 'Also permanently delete this configuration, API keys, and model cache? Type DELETE') -ceq 'DELETE') {
     foreach ($dataRoot in @($configRoot, $legacyConfigRoot)) {
         if (Test-Path -LiteralPath $dataRoot) {
             $expectedRoots = @([IO.Path]::GetFullPath((Join-Path $env:APPDATA 'codexapter')).TrimEnd('\'), [IO.Path]::GetFullPath((Join-Path $env:APPDATA 'codex-ai')).TrimEnd('\'))

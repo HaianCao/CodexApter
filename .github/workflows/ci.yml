@@ -44,3 +44,13 @@ jobs:
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -gt 0) { throw ($errors | Out-String) }
           }
+      - name: Smoke-test Windows install and uninstall
+        shell: pwsh
+        run: |
+          & .\scripts\install.ps1 -SkipCodexInstall -NonInteractive
+          $launcher = Join-Path $env:LOCALAPPDATA 'Programs\codex-ca\venv\Scripts\codex-ca.exe'
+          if (-not (Test-Path -LiteralPath $launcher)) { throw 'codex-ca.exe was not installed' }
+          & $launcher --help
+          if ($LASTEXITCODE -ne 0) { throw 'codex-ca --help failed' }
+          & .\scripts\uninstall.ps1 -NonInteractive
+          if (Test-Path -LiteralPath $launcher) { throw 'codex-ca.exe was not removed' }
