@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/CodexAI_black.png">
-    <img src="assets/CodexAI_white.png" width="224" alt="CodexApter logo">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/CodexApter_black.png">
+    <img src="assets/CodexApter_white.png" width="224" alt="CodexApter logo">
   </picture>
   <p><strong>A clean, focused way to connect Codex to the model provider you choose.</strong></p>
   <p>Manage providers, find models, choose a reasoning level, and launch Codex from one local setup studio.</p>

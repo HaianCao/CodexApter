@@ -20,10 +20,10 @@ packages = ["src/codex_adapter"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/codex_adapter/web_template.html" = "codex_adapter/web_template.html"
-"assets/CodexAI_white.png" = "codex_adapter/assets/CodexAI_white.png"
-"assets/CodexAI_black.png" = "codex_adapter/assets/CodexAI_black.png"
-"assets/CodexAI_white_icon.png" = "codex_adapter/assets/CodexAI_white_icon.png"
-"assets/CodexAI_black_icon.png" = "codex_adapter/assets/CodexAI_black_icon.png"
+"assets/CodexApter_white.png" = "codex_adapter/assets/CodexApter_white.png"
+"assets/CodexApter_black.png" = "codex_adapter/assets/CodexApter_black.png"
+"assets/CodexApter_white_icon.png" = "codex_adapter/assets/CodexApter_white_icon.png"
+"assets/CodexApter_black_icon.png" = "codex_adapter/assets/CodexApter_black_icon.png"
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/assets", "/pyproject.toml", "/README.md", "/LICENSE"]

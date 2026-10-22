@@ -120,10 +120,10 @@ def serve(config: Config) -> int:
                 self.wfile.write(page)
                 return
             if parsed.path in {
-                "/assets/CodexAI_white.png",
-                "/assets/CodexAI_black.png",
-                "/assets/CodexAI_white_icon.png",
-                "/assets/CodexAI_black_icon.png",
+                "/assets/CodexApter_white.png",
+                "/assets/CodexApter_black.png",
+                "/assets/CodexApter_white_icon.png",
+                "/assets/CodexApter_black_icon.png",
             }:
                 asset_name = parsed.path.rsplit("/", 1)[-1]
                 packaged_asset = Path(__file__).with_name("assets") / asset_name

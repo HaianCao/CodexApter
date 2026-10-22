@@ -14,9 +14,9 @@ from codex_adapter.web import _HTML, _default_secret_names, _remove_provider_con
 
 class WebConfigTests(unittest.TestCase):
     def test_page_uses_full_artwork_for_header_and_icon_variants_for_favicon(self):
-        self.assertIn('id="brandLogo" src="/assets/CodexAI_black.png"', _HTML)
-        self.assertIn('id="favicon" rel="icon" type="image/png" href="/assets/CodexAI_black_icon.png"', _HTML)
-        self.assertIn("const icon = `/assets/CodexAI_${light ? 'white' : 'black'}_icon.png`", _HTML)
+        self.assertIn('id="brandLogo" src="/assets/CodexApter_black.png"', _HTML)
+        self.assertIn('id="favicon" rel="icon" type="image/png" href="/assets/CodexApter_black_icon.png"', _HTML)
+        self.assertIn("const icon = `/assets/CodexApter_${light ? 'white' : 'black'}_icon.png`", _HTML)
 
     def test_default_secret_names_follow_provider_id_convention(self):
         self.assertEqual(_default_secret_names("agent_router"), ("agent_router-main", "AGENT_ROUTER_TOKEN"))

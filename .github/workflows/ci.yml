@@ -23,7 +23,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip wheel --no-deps . --wheel-dir dist
-          python -c "import glob, zipfile; wheel=glob.glob('dist/*.whl')[0]; names=set(zipfile.ZipFile(wheel).namelist()); expected={'codex_adapter/web_template.html','codex_adapter/assets/CodexAI_white.png','codex_adapter/assets/CodexAI_black.png','codex_adapter/assets/CodexAI_white_icon.png','codex_adapter/assets/CodexAI_black_icon.png'}; missing=expected-names; assert not missing, f'Missing package files: {missing}'"
+          python -c "import glob, zipfile; wheel=glob.glob('dist/*.whl')[0]; names=set(zipfile.ZipFile(wheel).namelist()); expected={'codex_adapter/web_template.html','codex_adapter/assets/CodexApter_white.png','codex_adapter/assets/CodexApter_black.png','codex_adapter/assets/CodexApter_white_icon.png','codex_adapter/assets/CodexApter_black_icon.png'}; missing=expected-names; assert not missing, f'Missing package files: {missing}'"
       - name: Parse scripts with Windows PowerShell 5.1
         shell: powershell
         run: |

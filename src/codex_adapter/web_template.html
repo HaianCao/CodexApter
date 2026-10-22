@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#090b10">
   <title>CodexApter · Provider Studio</title>
-  <link id="favicon" rel="icon" type="image/png" href="/assets/CodexAI_black_icon.png">
+  <link id="favicon" rel="icon" type="image/png" href="/assets/CodexApter_black_icon.png">
   <style>
     :root {
       color-scheme: dark;
@@ -122,7 +122,7 @@
   <main class="shell">
     <header class="masthead">
       <div class="brand">
-        <div class="brand-art"><img id="brandLogo" src="/assets/CodexAI_black.png" alt="CodexApter — your AI provider command center"></div>
+        <div class="brand-art"><img id="brandLogo" src="/assets/CodexApter_black.png" alt="CodexApter — your AI provider command center"></div>
         <div class="brand-copy">
           <p class="kicker">Provider studio</p>
           <h1 class="sr-only">CodexApter</h1>
@@ -188,8 +188,8 @@
       const selected = theme === 'light' ? 'light' : 'dark';
       document.documentElement.dataset.theme = selected;
       const light = selected === 'light';
-      const logo = `/assets/CodexAI_${light ? 'white' : 'black'}.png`;
-      const icon = `/assets/CodexAI_${light ? 'white' : 'black'}_icon.png`;
+      const logo = `/assets/CodexApter_${light ? 'white' : 'black'}.png`;
+      const icon = `/assets/CodexApter_${light ? 'white' : 'black'}_icon.png`;
       $('brandLogo').src = logo;
       $('favicon').href = icon;
       $('themeToggle').setAttribute('aria-pressed', String(light));
