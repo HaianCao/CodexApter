@@ -66,15 +66,12 @@ reasoning cannot be translated, or **Disabled — standard API** for compatible
 upstreams. Disabling requires gateway mode and overrides effort; models requiring
 reasoning may reject it. Unsupported reasoning output is never silently hidden.
 
-Add `-WithGateway` to the installer command to include the pinned Protoverta component. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider.
+Once the preview is released, add `-WithGateway -SourceBranch integration/protoverta` to the installer command to include its pinned Protoverta component. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider.
 
-The gateway preview is on `integration/protoverta`, not stable `main`:
+The gateway preview is on `integration/protoverta`. Its one-line installer will
+be available after the pinned Protoverta `v0.3.0a3` wheel is published.
 
-```powershell
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/integration/protoverta/scripts/install.ps1"))) -WithGateway -SourceBranch integration/protoverta
-```
-
-Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. It disables web search, subagents and reasoning summaries. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
+Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. The launcher requests web search, multi-agent execution and reasoning summaries to be disabled for translated sessions. Session history may still advertise old function tools; supported namespace functions are mapped by the gateway. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
 
 Responses function namespaces are mapped to reversible aliases for Chat/Messages;
 native Responses forwarding is unchanged. In a Messages provider's advanced
