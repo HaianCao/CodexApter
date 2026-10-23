@@ -79,7 +79,7 @@ class WebConfigTests(unittest.TestCase):
                 url = opened.get(timeout=3)
                 html = urlopen(url, timeout=3).read().decode("utf-8")
                 token = re.search(r"const SESSION_TOKEN = '([^']+)'", html).group(1)
-                for extra_fields in ({"upstream_reasoning": "openrouter_disabled"}, {}):
+                for extra_fields in ({"upstream_reasoning": "openrouter_disabled", "capabilities_file": "checks.json", "require_verified_capabilities": True}, {}):
                     edit = Request(
                         url + "api/provider",
                         data=json.dumps({"id": "demo", "display_name": "Demo renamed", "base_url": "https://example.test/v1", "execution_mode": "gateway", **extra_fields}).encode(),
@@ -88,6 +88,8 @@ class WebConfigTests(unittest.TestCase):
                     with urlopen(edit, timeout=3) as response:
                         self.assertEqual(json.load(response)["providers"][0]["upstream_reasoning"], "openrouter_disabled")
                     self.assertEqual(load(config.path).providers["demo"].upstream_reasoning, "openrouter_disabled")
+                    self.assertEqual(load(config.path).providers["demo"].capabilities_file, "checks.json")
+                    self.assertTrue(load(config.path).providers["demo"].require_verified_capabilities)
                 for extra_fields in ({"messages_system_models": ["verified-model"]}, {}):
                     edit = Request(
                         url + "api/provider",

@@ -7,12 +7,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .config import Config, Provider
+from .config import Config, Provider, config_path, validate_capability_settings
 from .credentials import resolve_token
 from .errors import LaunchError
 
 
 def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
+    validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
     if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
         raise LaunchError("An explicit upstream reasoning policy requires gateway mode.")
     executable = shutil.which("codex")
@@ -75,6 +76,15 @@ def _gateway(config: Config, provider: Provider):
     if not token:
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
+        registry_options = {}
+        capabilities_file, required = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
+        if capabilities_file:
+            from protoverta.capabilities import CapabilityRegistry
+
+            path = Path(capabilities_file).expanduser()
+            if not path.is_absolute():
+                path = (config.path or config_path()).resolve().parent / path
+            registry_options = {"capabilities": CapabilityRegistry.load(path), "require_verified_capabilities": required}
         gateway = GatewayConfig(
             upstream, provider.base_url, token, secrets.token_urlsafe(32),
             "x-api-key" if upstream == Protocol.MESSAGES else "bearer",
@@ -83,16 +93,32 @@ def _gateway(config: Config, provider: Provider):
             upstream_reasoning=provider.upstream_reasoning,
             namespace_tools="flatten" if upstream != Protocol.RESPONSES else "reject",
             messages_system_models=tuple(provider.messages_system_models),
+            **registry_options,
         )
-    except (TypeError, ValueError) as exc:
+    except (ImportError, OSError, TypeError, ValueError) as exc:
         raise LaunchError(f"Invalid or incompatible Protoverta gateway configuration: {exc}") from exc
     return gateway, gateway_session
+
+
+def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
+    registry = getattr(gateway, "capabilities", None)
+    if registry is None:
+        return
+    features = {"text", "streaming"}
+    if gateway.upstream_reasoning == "provider_default":
+        features.add("reasoning_effort")
+    try:
+        report = registry.assess(gateway.upstream_base_url, gateway.upstream_protocol, model, features)
+        report.require(verified=gateway.require_verified_capabilities)
+    except ValueError as exc:
+        raise LaunchError(f"Model compatibility check failed: {exc}") from exc
 
 
 def preflight(config: Config, provider: Provider, model: str, reasoning: str) -> None:
     """Validate launch prerequisites without opening a listener or CLI process."""
     if provider.execution_mode == "gateway":
-        _gateway(config, provider)
+        gateway, _ = _gateway(config, provider)
+        _verify_capabilities(gateway, model, reasoning)
         build_invocation(config, provider, model, reasoning, [], gateway_url="http://127.0.0.1:0", gateway_token="preflight")
     else:
         build_invocation(config, provider, model, reasoning, [])
@@ -102,6 +128,7 @@ def launch(config: Config, provider: Provider, model: str, reasoning: str, extra
     try:
         if provider.execution_mode == "gateway":
             gateway, gateway_session = _gateway(config, provider)
+            _verify_capabilities(gateway, model, reasoning)
             with gateway_session(gateway) as origin:
                 argv, env = build_invocation(config, provider, model, reasoning, extra, gateway_url=origin, gateway_token=gateway.inbound_token)
                 return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode

@@ -54,7 +54,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'codex-ca --help failed' }
           & .\scripts\install.ps1 -SkipCodexInstall -NonInteractive -WithGateway
           $python = Join-Path (Split-Path -Parent $launcher) 'python.exe'
-          & $python -c "import importlib.metadata; assert importlib.metadata.version('protoverta') == '0.3.0a3'"
+          & $python -c "import importlib.metadata; assert importlib.metadata.version('protoverta') == '0.3.0a4'"
           if ($LASTEXITCODE -ne 0) { throw 'Released gateway component was not installed' }
           & .\scripts\install.ps1 -SkipCodexInstall -NonInteractive
           & $python -c "import protoverta.server"

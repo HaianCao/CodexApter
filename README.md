@@ -72,7 +72,15 @@ To install the opt-in gateway preview from `integration/protoverta`, run:
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/integration/protoverta/scripts/install.ps1"))) -WithGateway -SourceBranch integration/protoverta
 ```
 
-This installs the pinned Protoverta `v0.3.0a3` release. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider. The regular `main` installer remains the stable, non-gateway path.
+The gateway component is version-pinned. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider. The regular `main` installer remains the stable, non-gateway path.
+
+Under **Advanced: model compatibility checks**, you can select a local capability
+registry file and require verified capabilities. Relative paths start at the
+configuration folder. Unsupported features are blocked before API calls; the
+strict option also blocks missing records. Leave this optional section empty
+unless you maintain capability records for your provider's exact API prefix and
+model IDs. Basic launch capabilities are checked before setup closes; tools and
+output formats are checked against each actual request.
 
 Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. The launcher requests web search, multi-agent execution and reasoning summaries to be disabled for translated sessions. Session history may still advertise old function tools; supported namespace functions are mapped by the gateway. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
 
