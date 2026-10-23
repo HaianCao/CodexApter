@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .catalog import cached_models, fetch_models
-from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url
+from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url, validate_system_models
 from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
 from .launcher import launch, preflight
@@ -29,6 +29,7 @@ def public_config(config: Config) -> dict:
                 "execution_mode": provider.execution_mode,
                 "gateway_max_output_tokens": provider.gateway_max_output_tokens,
                 "upstream_reasoning": provider.upstream_reasoning,
+                "messages_system_models": provider.messages_system_models,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -181,6 +182,7 @@ def serve(config: Config) -> int:
                     if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
                         raise ConfigError("Chat Completions and Messages providers require gateway mode.")
                     max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else 4096)
+                    system_models = validate_system_models(body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode)
                     upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "provider_default"))
                     if upstream_reasoning not in {"provider_default", "disabled", "openrouter_disabled"} or (execution_mode != "gateway" and upstream_reasoning != "provider_default"):
                         raise ConfigError("Choose a valid upstream reasoning policy; disabling requires gateway mode.")
@@ -208,6 +210,7 @@ def serve(config: Config) -> int:
                         discovery=Discovery(enabled=bool(body.get("discovery", True))),
                         gateway_max_output_tokens=max_tokens,
                         upstream_reasoning=upstream_reasoning,
+                        messages_system_models=system_models,
                     )
                     api_key = str(body.get("api_key", ""))
                     if api_key:

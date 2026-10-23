@@ -81,6 +81,8 @@ def _gateway(config: Config, provider: Provider):
             client_profile="codex" if upstream != Protocol.RESPONSES else "strict",
             default_max_output_tokens=provider.gateway_max_output_tokens,
             upstream_reasoning=provider.upstream_reasoning,
+            namespace_tools="flatten" if upstream != Protocol.RESPONSES else "reject",
+            messages_system_models=tuple(provider.messages_system_models),
         )
     except (TypeError, ValueError) as exc:
         raise LaunchError(f"Invalid or incompatible Protoverta gateway configuration: {exc}") from exc

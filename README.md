@@ -76,6 +76,14 @@ The gateway preview is on `integration/protoverta`, not stable `main`:
 
 Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. It disables web search, subagents and reasoning summaries. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
 
+Responses function namespaces are mapped to reversible aliases for Chat/Messages;
+native Responses forwarding is unchanged. In a Messages provider's advanced
+settings, exact model IDs can opt into provider-verified mid-conversation system
+support. Leave this empty unless support is confirmed. Instruction positions
+are preserved, so incompatible Codex model-switch histories still fail instead
+of being silently rewritten. Resume compatibility depends on the actual history
+and provider, not only on the selected endpoint.
+
 ## Use CodexApter
 
 ```powershell

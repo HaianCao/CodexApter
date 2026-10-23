@@ -67,7 +67,7 @@ class GatewayLaunchTests(unittest.TestCase):
             def __init__(self, upstream, base_url, key, inbound_token, auth_style, **policy):
                 self.inbound_token = inbound_token
                 events.append((upstream, base_url, key, auth_style))
-                assert policy == {"client_profile": "codex", "default_max_output_tokens": 4096, "upstream_reasoning": "provider_default"}
+                assert policy == {"client_profile": "codex", "default_max_output_tokens": 4096, "upstream_reasoning": "provider_default", "namespace_tools": "flatten", "messages_system_models": ()}
 
         @contextmanager
         def gateway_session(_config):

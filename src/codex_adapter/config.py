@@ -133,6 +133,18 @@ class Provider:
     discovery: Discovery = field(default_factory=Discovery)
     gateway_max_output_tokens: int = 4096
     upstream_reasoning: str = "provider_default"
+    messages_system_models: list[str] = field(default_factory=list)
+
+
+def validate_system_models(value: Any, protocol: str, mode: str) -> list[str]:
+    """Explicit, provider-verified model IDs; never infer capability from a name."""
+    if not isinstance(value, list) or any(not isinstance(model, str) or not model or any(char.isspace() for char in model) for model in value):
+        raise ConfigError("messages_system_models must be an array of exact model IDs.")
+    if len(value) != len(set(value)):
+        raise ConfigError("messages_system_models cannot contain duplicates.")
+    if value and (protocol != "anthropic_messages" or mode != "gateway"):
+        raise ConfigError("messages_system_models requires a Messages provider in gateway mode.")
+    return list(value)
 
 
 @dataclass
@@ -301,7 +313,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         upstream_reasoning = item.get("upstream_reasoning", "provider_default")
         if upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (mode != "gateway" and upstream_reasoning != "provider_default"):
             raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
-        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens, upstream_reasoning)
+        system_models = validate_system_models(item.get("messages_system_models", []), protocol, mode)
+        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens, upstream_reasoning, system_models)
     models: dict[str, ModelAlias] = {}
     for name, item in models_raw.items():
         _check_id(name, "Model alias")
@@ -340,6 +353,9 @@ def save(config: Config, path: Path | None = None) -> Path:
         if provider.execution_mode == "gateway":
             lines.append(f"gateway_max_output_tokens = {provider.gateway_max_output_tokens}")
         lines.append(f"upstream_reasoning = {_quote(provider.upstream_reasoning)}")
+        system_models = validate_system_models(provider.messages_system_models, provider.protocol, provider.execution_mode)
+        if system_models:
+            lines.append(f"messages_system_models = {json.dumps(system_models, ensure_ascii=False)}")
         if provider.auth_secret_ref:
             lines.append(f"auth_secret_ref = {_quote(provider.auth_secret_ref)}")
         if provider.default_model:

@@ -13,6 +13,8 @@ auth_secret_ref = "agentrouter-main"
 protocol = "responses"
 execution_mode = "direct"
 default_model = "deepseek-v4-flash"
+# Messages gateway providers only: exact model IDs verified by the provider.
+# messages_system_models = ["provider-verified-model-id"]
 
 [providers.agentrouter.model_discovery]
 enabled = true

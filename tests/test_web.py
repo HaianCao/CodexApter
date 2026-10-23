@@ -5,6 +5,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from unittest.mock import patch
 
@@ -87,6 +88,21 @@ class WebConfigTests(unittest.TestCase):
                     with urlopen(edit, timeout=3) as response:
                         self.assertEqual(json.load(response)["providers"][0]["upstream_reasoning"], "openrouter_disabled")
                     self.assertEqual(load(config.path).providers["demo"].upstream_reasoning, "openrouter_disabled")
+                for extra_fields in ({"messages_system_models": ["verified-model"]}, {}):
+                    edit = Request(
+                        url + "api/provider",
+                        data=json.dumps({"id": "demo", "display_name": "Demo renamed", "base_url": "https://example.test/v1", "protocol": "anthropic_messages", "execution_mode": "gateway", **extra_fields}).encode(),
+                        headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token}, method="POST",
+                    )
+                    with urlopen(edit, timeout=3) as response:
+                        self.assertEqual(json.load(response)["providers"][0]["messages_system_models"], ["verified-model"])
+                    self.assertEqual(load(config.path).providers["demo"].messages_system_models, ["verified-model"])
+                invalid = Request(url + "api/provider", data=json.dumps({"id": "demo", "display_name": "Invalid", "base_url": "https://example.test/v1", "messages_system_models": "not-an-array"}).encode(), headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token}, method="POST")
+                with self.assertRaises(HTTPError) as caught:
+                    urlopen(invalid, timeout=3)
+                self.assertEqual(caught.exception.code, 400)
+                caught.exception.close()
+                self.assertEqual(config.providers["demo"].display_name, "Demo renamed")
                 request = Request(
                     url + "api/run",
                     data=json.dumps({"provider": "demo", "model": "model-id", "reasoning": "low"}).encode(),

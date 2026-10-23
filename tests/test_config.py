@@ -11,6 +11,21 @@ from codex_adapter.errors import ConfigError
 
 
 class ConfigTests(unittest.TestCase):
+    def test_messages_system_models_round_trip_and_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            provider = Provider("demo", "Demo", "https://example.test/v1", protocol="anthropic_messages", execution_mode="gateway", messages_system_models=["verified-model"])
+            config = Config(providers={"demo": provider}, path=Path(directory) / "config.toml")
+            save(config)
+            self.assertEqual(load(config.path).providers["demo"].messages_system_models, ["verified-model"])
+            for invalid in ("verified-model", [""], ["bad model"], ["m", "m"], [1]):
+                provider.messages_system_models = invalid
+                with self.assertRaises(ConfigError):
+                    save(config)
+            provider.messages_system_models = ["verified-model"]
+            provider.protocol = "responses"
+            with self.assertRaises(ConfigError):
+                save(config)
+
     def test_save_load_and_resolve_default(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.toml"
