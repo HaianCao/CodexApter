@@ -60,6 +60,12 @@ When you choose **Run Codex**, the setup page closes and Codex takes over the te
 
 ### Optional protocol gateway
 
+In the provider editor, **Upstream reasoning** defaults to the provider/client
+settings. Choose **Disabled — OpenRouter** for OpenRouter models whose default
+reasoning cannot be translated, or **Disabled — standard API** for compatible
+upstreams. Disabling requires gateway mode and overrides effort; models requiring
+reasoning may reject it. Unsupported reasoning output is never silently hidden.
+
 Add `-WithGateway` to the installer command to include the pinned Protoverta component. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider.
 
 The gateway preview is on `integration/protoverta`, not stable `main`:

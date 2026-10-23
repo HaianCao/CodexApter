@@ -132,6 +132,7 @@ class Provider:
     default_model: str | None = None
     discovery: Discovery = field(default_factory=Discovery)
     gateway_max_output_tokens: int = 4096
+    upstream_reasoning: str = "provider_default"
 
 
 @dataclass
@@ -297,7 +298,10 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
             raise ConfigError(f"providers.{name}.model_discovery only permits a relative GET path.")
         display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
         gateway_max_output_tokens = _positive_integer(item.get("gateway_max_output_tokens", 4096), f"providers.{name}.gateway_max_output_tokens")
-        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens)
+        upstream_reasoning = item.get("upstream_reasoning", "provider_default")
+        if upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (mode != "gateway" and upstream_reasoning != "provider_default"):
+            raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
+        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens, upstream_reasoning)
     models: dict[str, ModelAlias] = {}
     for name, item in models_raw.items():
         _check_id(name, "Model alias")
@@ -330,9 +334,12 @@ def save(config: Config, path: Path | None = None) -> Path:
     for name, secret in sorted(config.secrets.items()):
         lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
     for name, provider in sorted(config.providers.items()):
+        if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
+            raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
         lines.extend(["", f"[providers.{name}]", f"display_name = {_quote(provider.display_name)}", f"base_url = {_quote(provider.base_url)}", f"protocol = {_quote(provider.protocol)}", f"execution_mode = {_quote(provider.execution_mode)}"])
         if provider.execution_mode == "gateway":
             lines.append(f"gateway_max_output_tokens = {provider.gateway_max_output_tokens}")
+        lines.append(f"upstream_reasoning = {_quote(provider.upstream_reasoning)}")
         if provider.auth_secret_ref:
             lines.append(f"auth_secret_ref = {_quote(provider.auth_secret_ref)}")
         if provider.default_model:

@@ -28,6 +28,7 @@ def public_config(config: Config) -> dict:
                 "protocol": provider.protocol,
                 "execution_mode": provider.execution_mode,
                 "gateway_max_output_tokens": provider.gateway_max_output_tokens,
+                "upstream_reasoning": provider.upstream_reasoning,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -180,6 +181,9 @@ def serve(config: Config) -> int:
                     if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
                         raise ConfigError("Chat Completions and Messages providers require gateway mode.")
                     max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else 4096)
+                    upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "provider_default"))
+                    if upstream_reasoning not in {"provider_default", "disabled", "openrouter_disabled"} or (execution_mode != "gateway" and upstream_reasoning != "provider_default"):
+                        raise ConfigError("Choose a valid upstream reasoning policy; disabling requires gateway mode.")
                     if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens <= 0:
                         raise ConfigError("Gateway token limit must be a positive integer.")
                     if not display_name:
@@ -203,6 +207,7 @@ def serve(config: Config) -> int:
                         default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
                         discovery=Discovery(enabled=bool(body.get("discovery", True))),
                         gateway_max_output_tokens=max_tokens,
+                        upstream_reasoning=upstream_reasoning,
                     )
                     api_key = str(body.get("api_key", ""))
                     if api_key:

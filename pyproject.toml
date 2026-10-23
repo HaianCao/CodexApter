@@ -12,7 +12,7 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
-gateway = ["protoverta==0.3.0a2"]
+gateway = ["protoverta==0.3.0a3"]
 
 [project.scripts]
 codex-ca = "codex_adapter.cli:main"

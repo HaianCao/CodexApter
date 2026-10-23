@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from unittest.mock import patch
 
-from codex_adapter.config import Config, Defaults, ModelAlias, Provider, SecretReference
+from codex_adapter.config import Config, Defaults, ModelAlias, Provider, SecretReference, load
 from codex_adapter.web import _HTML, _default_secret_names, _remove_provider_config, serve
 
 
@@ -78,6 +78,15 @@ class WebConfigTests(unittest.TestCase):
                 url = opened.get(timeout=3)
                 html = urlopen(url, timeout=3).read().decode("utf-8")
                 token = re.search(r"const SESSION_TOKEN = '([^']+)'", html).group(1)
+                for extra_fields in ({"upstream_reasoning": "openrouter_disabled"}, {}):
+                    edit = Request(
+                        url + "api/provider",
+                        data=json.dumps({"id": "demo", "display_name": "Demo renamed", "base_url": "https://example.test/v1", "execution_mode": "gateway", **extra_fields}).encode(),
+                        headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token}, method="POST",
+                    )
+                    with urlopen(edit, timeout=3) as response:
+                        self.assertEqual(json.load(response)["providers"][0]["upstream_reasoning"], "openrouter_disabled")
+                    self.assertEqual(load(config.path).providers["demo"].upstream_reasoning, "openrouter_disabled")
                 request = Request(
                     url + "api/run",
                     data=json.dumps({"provider": "demo", "model": "model-id", "reasoning": "low"}).encode(),

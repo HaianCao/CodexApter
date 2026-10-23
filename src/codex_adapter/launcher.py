@@ -13,6 +13,8 @@ from .errors import LaunchError
 
 
 def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
+    if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
+        raise LaunchError("An explicit upstream reasoning policy requires gateway mode.")
     executable = shutil.which("codex")
     if not executable:
         raise LaunchError("Codex CLI was not found on PATH.")
@@ -78,6 +80,7 @@ def _gateway(config: Config, provider: Provider):
             "x-api-key" if upstream == Protocol.MESSAGES else "bearer",
             client_profile="codex" if upstream != Protocol.RESPONSES else "strict",
             default_max_output_tokens=provider.gateway_max_output_tokens,
+            upstream_reasoning=provider.upstream_reasoning,
         )
     except (TypeError, ValueError) as exc:
         raise LaunchError(f"Invalid or incompatible Protoverta gateway configuration: {exc}") from exc
