@@ -1,4 +1,4 @@
-param([switch]$SkipCodexInstall, [switch]$NonInteractive, [switch]$WithGateway, [string]$ProtovertaWheel)
+param([switch]$SkipCodexInstall, [switch]$NonInteractive, [switch]$WithGateway, [string]$ProtovertaWheel, [switch]$NoPathChanges, [string]$SourceBranch = 'main')
 $ErrorActionPreference = 'Stop'
 $sourceTempRoot = $null
 
@@ -37,6 +37,7 @@ function Get-SupportedPython {
 }
 
 function Add-UserPath([string]$Directory) {
+    if ($NoPathChanges) { return }
     if (-not (Test-Path -LiteralPath $Directory)) { return }
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
     $entries = @($current -split ';' | Where-Object { $_ })
@@ -50,6 +51,7 @@ function Add-UserPath([string]$Directory) {
 }
 
 function Remove-UserPath([string]$Directory) {
+    if ($NoPathChanges) { return }
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
     $entries = @($current -split ';' | Where-Object { $_ })
     $kept = @($entries | Where-Object { $_.TrimEnd('\') -ine $Directory.TrimEnd('\') })
@@ -60,12 +62,15 @@ function Remove-UserPath([string]$Directory) {
 }
 
 try {
+    if ($SourceBranch -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$' -or $SourceBranch.Contains('..')) {
+        throw 'SourceBranch must be a valid Git branch name.'
+    }
     $repoRoot = $null
-    if ($PSScriptRoot) {
+    if ($PSScriptRoot -and -not $PSBoundParameters.ContainsKey('SourceBranch')) {
         $candidate = Split-Path -Parent $PSScriptRoot
         if (Test-CodexApterSource $candidate) { $repoRoot = $candidate }
     }
-    if (-not $repoRoot) {
+    if (-not $repoRoot -and -not $PSBoundParameters.ContainsKey('SourceBranch')) {
         $candidate = (Get-Location).Path
         if (Test-CodexApterSource $candidate) { $repoRoot = $candidate }
     }
@@ -82,7 +87,7 @@ try {
         $archivePath = "$sourceTempRoot.zip"
         New-Item -ItemType Directory -Path $sourceTempRoot -Force | Out-Null
         try {
-            Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/HaianCao/CodexApter/archive/refs/heads/main.zip' -OutFile $archivePath
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/HaianCao/CodexApter/archive/refs/heads/${SourceBranch}.zip" -OutFile $archivePath
             Expand-Archive -LiteralPath $archivePath -DestinationPath $sourceTempRoot -Force
         }
         finally {
@@ -164,9 +169,12 @@ try {
         $WithGateway = $true
     }
     if ($WithGateway) {
+        if (-not [regex]::IsMatch((Get-Content -LiteralPath (Join-Path $repoRoot 'pyproject.toml') -Raw), '(?m)^gateway\s*=')) {
+            throw 'Selected source has no gateway extra. For the preview use -SourceBranch integration/protoverta.'
+        }
         $installTarget = "${repoRoot}[gateway]"
         if (-not $ProtovertaWheel) {
-            $gatewayPackages += 'https://github.com/HaianCao/Protoverta/releases/download/v0.3.0a1/protoverta-0.3.0a1-py3-none-any.whl'
+            $gatewayPackages += 'https://github.com/HaianCao/Protoverta/releases/download/v0.3.0a2/protoverta-0.3.0a2-py3-none-any.whl'
         }
     }
     & $venvPython -m pip install --disable-pip-version-check --force-reinstall $installTarget @gatewayPackages

@@ -1,4 +1,4 @@
-param([switch]$NonInteractive)
+param([switch]$NonInteractive, [switch]$NoPathChanges)
 $ErrorActionPreference = 'Stop'
 
 # Remove both the current wrapper and the previous codex-ai wrapper, if present.
@@ -59,6 +59,7 @@ if ($pipx) {
     }
 }
 
+if (-not $NoPathChanges) {
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $pathTargets = @($venvScripts | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') })
 $keptEntries = @($userPath -split ';' | Where-Object {
@@ -70,6 +71,7 @@ if ($keptEntries.Count -ne @($userPath -split ';' | Where-Object { $_ }).Count) 
         $_ -and ($pathTargets -notcontains $_.TrimEnd('\'))
     }) -join ';')
     Write-Host 'Removed CodexApter wrapper entries from your user PATH.'
+}
 }
 
 Write-Host "`nThe default configuration and API keys will be preserved at: $configRoot" -ForegroundColor Yellow

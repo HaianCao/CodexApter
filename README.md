@@ -62,6 +62,12 @@ When you choose **Run Codex**, the setup page closes and Codex takes over the te
 
 Add `-WithGateway` to the installer command to include the pinned Protoverta component. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider.
 
+The gateway preview is on `integration/protoverta`, not stable `main`:
+
+```powershell
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/integration/protoverta/scripts/install.ps1"))) -WithGateway -SourceBranch integration/protoverta
+```
+
 Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. It disables web search, subagents and reasoning summaries. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
 
 ## Use CodexApter
@@ -106,6 +112,8 @@ python -m pytest
 Pull requests and pushes are checked by the project's GitHub Actions workflow.
 
 To test an unpublished gateway build, pass `-ProtovertaWheel PATH_TO_WHEEL` to the local installer. This enables the gateway extra and checks its pinned package version without copying Protoverta source into this project.
+
+Installer smoke tests can pass `-NoPathChanges` to install and uninstall scripts. Redirect `APPDATA` and `LOCALAPPDATA` in a disposable child shell as well: the flag alone does not isolate installation or user data paths.
 
 ## License
 
