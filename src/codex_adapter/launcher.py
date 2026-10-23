@@ -7,12 +7,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .config import Config, Provider, config_path, validate_capability_settings
+from .config import Config, Provider, config_path, validate_capability_settings, validate_public_reasoning
 from .credentials import resolve_token
 from .errors import LaunchError
 
 
 def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
+    validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
     validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
     if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
         raise LaunchError("An explicit upstream reasoning policy requires gateway mode.")
@@ -77,6 +78,8 @@ def _gateway(config: Config, provider: Provider):
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
         registry_options = {}
+        if validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode):
+            registry_options["public_reasoning"] = True
         capabilities_file, required = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
         if capabilities_file:
             from protoverta.capabilities import CapabilityRegistry
@@ -84,7 +87,7 @@ def _gateway(config: Config, provider: Provider):
             path = Path(capabilities_file).expanduser()
             if not path.is_absolute():
                 path = (config.path or config_path()).resolve().parent / path
-            registry_options = {"capabilities": CapabilityRegistry.load(path), "require_verified_capabilities": required}
+            registry_options.update(capabilities=CapabilityRegistry.load(path), require_verified_capabilities=required)
         gateway = GatewayConfig(
             upstream, provider.base_url, token, secrets.token_urlsafe(32),
             "x-api-key" if upstream == Protocol.MESSAGES else "bearer",
@@ -105,6 +108,8 @@ def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
     if registry is None:
         return
     features = {"text", "streaming"}
+    if getattr(gateway, "public_reasoning", False):
+        features.add("public_reasoning")
     if gateway.upstream_reasoning == "provider_default":
         features.add("reasoning_effort")
     try:

@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .catalog import cached_models, fetch_models
-from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url, validate_system_models, validate_capability_settings
+from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url, validate_system_models, validate_capability_settings, validate_public_reasoning
 from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
 from .launcher import launch, preflight
@@ -32,6 +32,7 @@ def public_config(config: Config) -> dict:
                 "messages_system_models": provider.messages_system_models,
                 "capabilities_file": provider.capabilities_file,
                 "require_verified_capabilities": provider.require_verified_capabilities,
+                "public_reasoning": provider.public_reasoning,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -186,6 +187,7 @@ def serve(config: Config) -> int:
                     max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else 4096)
                     system_models = validate_system_models(body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode)
                     capabilities_file, require_verified = validate_capability_settings(body.get("capabilities_file", current.capabilities_file if current else ""), body.get("require_verified_capabilities", current.require_verified_capabilities if current else False), execution_mode)
+                    public_reasoning = validate_public_reasoning(body.get("public_reasoning", current.public_reasoning if current else False), protocol, execution_mode)
                     upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "provider_default"))
                     if upstream_reasoning not in {"provider_default", "disabled", "openrouter_disabled"} or (execution_mode != "gateway" and upstream_reasoning != "provider_default"):
                         raise ConfigError("Choose a valid upstream reasoning policy; disabling requires gateway mode.")
@@ -216,6 +218,7 @@ def serve(config: Config) -> int:
                         messages_system_models=system_models,
                         capabilities_file=capabilities_file,
                         require_verified_capabilities=require_verified,
+                        public_reasoning=public_reasoning,
                     )
                     api_key = str(body.get("api_key", ""))
                     if api_key:

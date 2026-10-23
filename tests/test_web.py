@@ -99,6 +99,11 @@ class WebConfigTests(unittest.TestCase):
                     with urlopen(edit, timeout=3) as response:
                         self.assertEqual(json.load(response)["providers"][0]["messages_system_models"], ["verified-model"])
                     self.assertEqual(load(config.path).providers["demo"].messages_system_models, ["verified-model"])
+                for extra_fields in ({"public_reasoning": True, "messages_system_models": []}, {}):
+                    edit = Request(url + "api/provider", data=json.dumps({"id": "demo", "display_name": "Demo renamed", "base_url": "https://example.test/v1", "protocol": "chat_completions", "execution_mode": "gateway", **extra_fields}).encode(), headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token}, method="POST")
+                    with urlopen(edit, timeout=3) as response:
+                        self.assertTrue(json.load(response)["providers"][0]["public_reasoning"])
+                    self.assertTrue(load(config.path).providers["demo"].public_reasoning)
                 invalid = Request(url + "api/provider", data=json.dumps({"id": "demo", "display_name": "Invalid", "base_url": "https://example.test/v1", "messages_system_models": "not-an-array"}).encode(), headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token}, method="POST")
                 with self.assertRaises(HTTPError) as caught:
                     urlopen(invalid, timeout=3)

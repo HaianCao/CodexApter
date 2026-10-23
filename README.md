@@ -27,7 +27,7 @@ CodexApter is a lightweight launcher and configuration studio for the official C
 - Launch Codex in the current terminal, or select a different provider/model for one run.
 - Manage API keys locally without putting them in the provider configuration file.
 
-Responses providers connect directly by default. An opt-in local Protoverta gateway can translate the supported text/function-tool subset from Chat Completions or Anthropic Messages providers into Responses; unsupported requests fail explicitly. Model discovery through `GET /models` is optional, and model IDs can be entered manually.
+Responses providers connect directly by default. An opt-in local Protoverta gateway translates supported text, user image inputs and function tools from Chat Completions or Anthropic Messages into Responses; unsupported requests fail explicitly. Model discovery through `GET /models` is optional, and model IDs can be entered manually.
 
 ## Quick start
 
@@ -123,6 +123,13 @@ The uninstaller removes the CodexApter launcher and its PATH entry. It keeps pro
 Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). Direct mode does not proxy conversations; gateway mode starts a temporary loopback Protoverta server and stops it when Codex exits.
 
 Gateway mode is experimental. Client interoperability is tested with scripted local upstreams; each real provider/model still needs its own compatibility check.
+
+For Chat providers returning unsigned `reasoning_content`, the provider editor
+offers **Advanced: public reasoning text** (`public_reasoning = true` in TOML).
+This opt-in keeps public reasoning separate from the answer and supports replay
+as Responses `reasoning_text`. It does not convert summaries, encrypted state or
+Messages signatures. Image inputs support URL/base64 user messages, not image
+tool results or provider-owned file IDs. Provider/model support still varies.
 
 ## For contributors
 
