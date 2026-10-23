@@ -14,7 +14,7 @@ from .catalog import cached_models, fetch_models
 from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url
 from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
-from .launcher import build_invocation, launch
+from .launcher import launch, preflight
 
 
 def public_config(config: Config) -> dict:
@@ -27,6 +27,7 @@ def public_config(config: Config) -> dict:
                 "base_url": provider.base_url,
                 "protocol": provider.protocol,
                 "execution_mode": provider.execution_mode,
+                "gateway_max_output_tokens": provider.gateway_max_output_tokens,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -171,9 +172,18 @@ def serve(config: Config) -> int:
                     _validate_provider_id(provider_id)
                     display_name = str(body.get("display_name", "")).strip()
                     base_url = validate_base_url(str(body.get("base_url", "")).strip())
+                    current = config.providers.get(provider_id)
+                    protocol = str(body.get("protocol", current.protocol if current else "responses"))
+                    if protocol not in {"responses", "chat_completions", "anthropic_messages"}:
+                        raise ConfigError("Choose Responses, Chat Completions, or Messages.")
+                    execution_mode = str(body.get("execution_mode", current.execution_mode if current else "direct"))
+                    if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
+                        raise ConfigError("Chat Completions and Messages providers require gateway mode.")
+                    max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else 4096)
+                    if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens <= 0:
+                        raise ConfigError("Gateway token limit must be a positive integer.")
                     if not display_name:
                         raise ConfigError("Display name is required.")
-                    current = config.providers.get(provider_id)
                     # Keep existing custom mappings intact, but new providers get
                     # predictable names without asking users to manage internals.
                     if current and current.auth_secret_ref:
@@ -187,11 +197,12 @@ def serve(config: Config) -> int:
                         id=provider_id,
                         display_name=display_name,
                         base_url=base_url,
-                        protocol="responses",
-                        execution_mode="direct",
+                        protocol=protocol,
+                        execution_mode=execution_mode,
                         auth_secret_ref=secret_ref,
                         default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
                         discovery=Discovery(enabled=bool(body.get("discovery", True))),
+                        gateway_max_output_tokens=max_tokens,
                     )
                     api_key = str(body.get("api_key", ""))
                     if api_key:
@@ -226,12 +237,12 @@ def serve(config: Config) -> int:
                         raise ConfigError("Choose a model or enter a model ID.")
                     if reasoning not in {"low", "medium", "high"}:
                         raise ConfigError("Reasoning effort must be low, medium, or high.")
+                    # Show executable, credential, or gateway failures before
+                    # persisting defaults and closing the setup page.
+                    preflight(config, provider, model, reasoning)
                     config.defaults.provider, config.defaults.model, config.defaults.reasoning_effort = provider.id, model, reasoning
                     config.env_file = env_file_path(config)
                     save(config)
-                    # Validate the executable and credentials before closing the
-                    # setup page so failures can still be shown in the browser.
-                    build_invocation(config, provider, model, reasoning, [])
                     run_request = (provider, model, reasoning)
                     self._json({"started": True})
                     threading.Thread(target=server.shutdown, daemon=True).start()

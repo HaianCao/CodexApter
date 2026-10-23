@@ -14,8 +14,8 @@ from urllib.parse import urlsplit
 from .errors import ConfigError
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
-_PROTOCOLS = {"responses"}
-_MODES = {"auto", "direct"}
+_PROTOCOLS = {"responses", "chat_completions", "anthropic_messages"}
+_MODES = {"auto", "direct", "gateway"}
 _REASONING_EFFORTS = {"low", "medium", "high"}
 
 
@@ -131,6 +131,7 @@ class Provider:
     auth_secret_ref: str | None = None
     default_model: str | None = None
     discovery: Discovery = field(default_factory=Discovery)
+    gateway_max_output_tokens: int = 4096
 
 
 @dataclass
@@ -251,8 +252,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
     models_raw = _table(raw.get("models", {}), "models")
     reasoning_effort = _reasoning_effort(defaults_raw.get("reasoning_effort", "medium"), "defaults.reasoning_effort")
     execution_mode = _string(defaults_raw.get("execution_mode", "auto"), "defaults.execution_mode", required=True)
-    if execution_mode not in _MODES:
-        raise ConfigError("defaults.execution_mode must be auto or direct.")
+    if execution_mode not in {"auto", "direct"}:
+        raise ConfigError("defaults.execution_mode must be auto or direct; gateway mode is configured per provider.")
     defaults = Defaults(
         provider=_string(defaults_raw.get("provider"), "defaults.provider"),
         model=_string(defaults_raw.get("model"), "defaults.model"),
@@ -276,10 +277,10 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         base_url = validate_base_url(base_url)
         protocol = _string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True)
         mode = _string(item.get("execution_mode", "direct"), f"providers.{name}.execution_mode", required=True)
-        legacy_protocols = {"chat_completions", "anthropic_messages"} if allow_legacy_protocols else set()
-        legacy_modes = {"gateway"} if allow_legacy_protocols else set()
-        if protocol not in (_PROTOCOLS | legacy_protocols) or mode not in (_MODES | legacy_modes):
+        if protocol not in _PROTOCOLS or mode not in _MODES:
             raise ConfigError(f"providers.{name} has unsupported protocol or execution_mode.")
+        if protocol != "responses" and mode != "gateway" and not allow_legacy_protocols:
+            raise ConfigError(f"providers.{name} requires gateway mode for {protocol}.")
         secret_ref = _string(item.get("auth_secret_ref"), f"providers.{name}.auth_secret_ref")
         if secret_ref and secret_ref not in secrets:
             raise ConfigError(f"providers.{name} references missing secret '{secret_ref}'.")
@@ -295,7 +296,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         if discovery.method != "GET" or discovery.response_format != "openai_models_list" or not discovery.path.startswith("/") or "://" in discovery.path:
             raise ConfigError(f"providers.{name}.model_discovery only permits a relative GET path.")
         display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
-        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery)
+        gateway_max_output_tokens = _positive_integer(item.get("gateway_max_output_tokens", 4096), f"providers.{name}.gateway_max_output_tokens")
+        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens)
     models: dict[str, ModelAlias] = {}
     for name, item in models_raw.items():
         _check_id(name, "Model alias")
@@ -329,6 +331,8 @@ def save(config: Config, path: Path | None = None) -> Path:
         lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
     for name, provider in sorted(config.providers.items()):
         lines.extend(["", f"[providers.{name}]", f"display_name = {_quote(provider.display_name)}", f"base_url = {_quote(provider.base_url)}", f"protocol = {_quote(provider.protocol)}", f"execution_mode = {_quote(provider.execution_mode)}"])
+        if provider.execution_mode == "gateway":
+            lines.append(f"gateway_max_output_tokens = {provider.gateway_max_output_tokens}")
         if provider.auth_secret_ref:
             lines.append(f"auth_secret_ref = {_quote(provider.auth_secret_ref)}")
         if provider.default_model:

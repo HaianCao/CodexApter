@@ -71,7 +71,7 @@ class WebConfigTests(unittest.TestCase):
                 return 0
 
             with patch("codex_adapter.web.webbrowser.open", side_effect=opened.put), patch(
-                "codex_adapter.web.build_invocation", return_value=(["codex"], {})
+                "codex_adapter.web.preflight", return_value=None
             ), patch("codex_adapter.web.launch", side_effect=fake_launch):
                 setup_thread = threading.Thread(target=lambda: result.setdefault("code", serve(config)))
                 setup_thread.start()

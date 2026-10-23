@@ -27,7 +27,7 @@ CodexApter is a lightweight launcher and configuration studio for the official C
 - Launch Codex in the current terminal, or select a different provider/model for one run.
 - Manage API keys locally without putting them in the provider configuration file.
 
-Providers must support the OpenAI Responses API (`/responses`). Model discovery through `GET /models` is optional; you can enter model IDs yourself when a provider does not offer it. CodexApter does not translate Chat Completions or Anthropic Messages requests into Responses.
+Responses providers connect directly by default. An opt-in local Protoverta gateway can translate the supported text/function-tool subset from Chat Completions or Anthropic Messages providers into Responses; unsupported requests fail explicitly. Model discovery through `GET /models` is optional, and model IDs can be entered manually.
 
 ## Quick start
 
@@ -56,7 +56,13 @@ In the setup page:
 3. Select **Refresh models** to query the provider's model catalog, or type a model ID directly.
 4. Choose a reasoning effort and select **Save as default** or **Run Codex**.
 
-When you choose **Run Codex**, the setup page closes and Codex takes over the terminal where you launched `codex-ca setup`. The provider's API key is passed to Codex through the process environment.
+When you choose **Run Codex**, the setup page closes and Codex takes over the terminal where you launched `codex-ca setup`. Direct mode supplies the provider key; gateway mode supplies a temporary local token and keeps the upstream key in the launcher.
+
+### Optional protocol gateway
+
+Add `-WithGateway` to the installer command to include the pinned Protoverta component. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider.
+
+Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. It disables web search, subagents and reasoning summaries. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
 
 ## Use CodexApter
 
@@ -86,7 +92,9 @@ The uninstaller removes the CodexApter launcher and its PATH entry. It keeps pro
 
 ## Privacy and security
 
-Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). CodexApter is a local launcher; it does not host a service or proxy your conversations.
+Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). Direct mode does not proxy conversations; gateway mode starts a temporary loopback Protoverta server and stops it when Codex exits.
+
+Gateway mode is experimental. Client interoperability is tested with scripted local upstreams; each real provider/model still needs its own compatibility check.
 
 ## For contributors
 
@@ -96,6 +104,8 @@ python -m pytest
 ```
 
 Pull requests and pushes are checked by the project's GitHub Actions workflow.
+
+To test an unpublished gateway build, pass `-ProtovertaWheel PATH_TO_WHEEL` to the local installer. This enables the gateway extra and checks its pinned package version without copying Protoverta source into this project.
 
 ## License
 

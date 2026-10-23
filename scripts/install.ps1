@@ -1,9 +1,15 @@
-param([switch]$SkipCodexInstall, [switch]$NonInteractive)
+param([switch]$SkipCodexInstall, [switch]$NonInteractive, [switch]$WithGateway, [string]$ProtovertaWheel)
 $ErrorActionPreference = 'Stop'
 $sourceTempRoot = $null
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
+
+function Test-CodexApterSource([string]$Directory) {
+    $project = Join-Path $Directory 'pyproject.toml'
+    if (-not (Test-Path -LiteralPath $project)) { return $false }
+    return [bool]([regex]::IsMatch((Get-Content -LiteralPath $project -Raw), '(?m)^name\s*=\s*"codexapter"\s*$'))
 }
 
 function Get-SupportedPython {
@@ -57,11 +63,11 @@ try {
     $repoRoot = $null
     if ($PSScriptRoot) {
         $candidate = Split-Path -Parent $PSScriptRoot
-        if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
+        if (Test-CodexApterSource $candidate) { $repoRoot = $candidate }
     }
     if (-not $repoRoot) {
         $candidate = (Get-Location).Path
-        if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
+        if (Test-CodexApterSource $candidate) { $repoRoot = $candidate }
     }
 
     Write-Host 'This installer installs Codex CLI and CodexApter (codex-ca) for your Windows user only.' -ForegroundColor White
@@ -76,13 +82,13 @@ try {
         $archivePath = "$sourceTempRoot.zip"
         New-Item -ItemType Directory -Path $sourceTempRoot -Force | Out-Null
         try {
-            Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/HaianCao/free-codex-cli/archive/refs/heads/main.zip' -OutFile $archivePath
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/HaianCao/CodexApter/archive/refs/heads/main.zip' -OutFile $archivePath
             Expand-Archive -LiteralPath $archivePath -DestinationPath $sourceTempRoot -Force
         }
         finally {
             Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue
         }
-        $projectFile = Get-ChildItem -LiteralPath $sourceTempRoot -Filter 'pyproject.toml' -File -Recurse | Select-Object -First 1
+        $projectFile = Get-ChildItem -LiteralPath $sourceTempRoot -Filter 'pyproject.toml' -File -Recurse | Where-Object { Test-CodexApterSource $_.Directory.FullName } | Select-Object -First 1
         if (-not $projectFile) { throw 'Downloaded repository does not contain pyproject.toml.' }
         $repoRoot = $projectFile.Directory.FullName
     }
@@ -143,7 +149,27 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Could not create the CodexApter Python environment.' }
     }
     # Force reinstall so source changes are applied even if pyproject.toml still has the same version.
-    & $venvPython -m pip install --disable-pip-version-check --force-reinstall $repoRoot
+    $installTarget = $repoRoot
+    $gatewayPackages = @()
+    if (-not $WithGateway -and -not $ProtovertaWheel) {
+        $hasGateway = & $venvPython -c "import importlib.util; print(int(importlib.util.find_spec('protoverta') is not None))"
+        if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the existing gateway installation.' }
+        if (([string]$hasGateway).Trim() -eq '1') { $WithGateway = $true }
+    }
+    if ($ProtovertaWheel) {
+        if (-not (Test-Path -LiteralPath $ProtovertaWheel -PathType Leaf) -or [IO.Path]::GetExtension($ProtovertaWheel) -ne '.whl') {
+            throw 'ProtovertaWheel must point to a local Protoverta wheel file.'
+        }
+        $gatewayPackages += (Resolve-Path -LiteralPath $ProtovertaWheel).Path
+        $WithGateway = $true
+    }
+    if ($WithGateway) {
+        $installTarget = "${repoRoot}[gateway]"
+        if (-not $ProtovertaWheel) {
+            $gatewayPackages += 'https://github.com/HaianCao/Protoverta/releases/download/v0.3.0a1/protoverta-0.3.0a1-py3-none-any.whl'
+        }
+    }
+    & $venvPython -m pip install --disable-pip-version-check --force-reinstall $installTarget @gatewayPackages
     if ($LASTEXITCODE -ne 0) { throw 'Installing CodexApter failed. Check the Python/pip output and rerun this setup file.' }
     if (-not (Test-Path -LiteralPath $codexCaExe)) { throw 'The package installed but codex-ca.exe was not created.' }
     $venvScripts = Join-Path $venv 'Scripts'

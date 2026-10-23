@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .config import Config, Provider, cache_path, migrate_legacy_cache
+from .config import Config, Provider, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
 

@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import config_path, load
+from .config import load
 from .diagnostics import doctor
 from .errors import AdapterError
 from .launcher import launch
@@ -24,15 +24,19 @@ def _parser() -> argparse.ArgumentParser:
     setup = commands.add_parser("setup", help="Open interactive provider/model setup")
     setup.add_argument("codex_args", nargs=argparse.REMAINDER)
     run = commands.add_parser("run", help="Run Codex using resolved configuration")
-    _add_selection(run); run.add_argument("codex_args", nargs=argparse.REMAINDER)
+    _add_selection(run)
+    run.add_argument("codex_args", nargs=argparse.REMAINDER)
     execute = commands.add_parser("exec", help="Forward Codex exec arguments")
-    _add_selection(execute); execute.add_argument("codex_args", nargs=argparse.REMAINDER)
+    _add_selection(execute)
+    execute.add_argument("codex_args", nargs=argparse.REMAINDER)
     resume = commands.add_parser("resume", help="Forward Codex resume arguments")
-    _add_selection(resume); resume.add_argument("codex_args", nargs=argparse.REMAINDER)
+    _add_selection(resume)
+    resume.add_argument("codex_args", nargs=argparse.REMAINDER)
     providers = commands.add_parser("providers", help="Provider operations")
     providers.add_argument("action", choices=["list"])
     models = commands.add_parser("models", help="Model operations")
-    models.add_argument("action", choices=["list"]); models.add_argument("-p", "--provider")
+    models.add_argument("action", choices=["list"])
+    models.add_argument("-p", "--provider")
     validate = commands.add_parser("config", help="Configuration operations")
     validate.add_argument("action", choices=["validate"])
     check = commands.add_parser("doctor", help="Validate provider setup")
@@ -87,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
     except AdapterError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        return 130
 
 
 if __name__ == "__main__":

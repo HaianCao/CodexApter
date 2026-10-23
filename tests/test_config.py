@@ -132,7 +132,7 @@ class ConfigTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ConfigError):
                 validate_base_url(value)
 
-    def test_setup_can_load_legacy_protocol_for_repair(self):
+    def test_gateway_protocol_is_available_for_normal_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "legacy.toml"
             path.write_text('''schema_version = 1
@@ -142,11 +142,24 @@ base_url = "https://example.test/v1"
 protocol = "chat_completions"
 execution_mode = "gateway"
 ''', encoding="utf-8")
-            with self.assertRaises(ConfigError):
-                load(path)
-            config = load(path, allow_legacy_protocols=True)
+            config = load(path)
             self.assertEqual(config.providers["nim"].display_name, "NVIDIA NIM")
             self.assertEqual(config.providers["nim"].protocol, "chat_completions")
+            self.assertEqual(config.providers["nim"].execution_mode, "gateway")
+
+    def test_non_responses_provider_requires_gateway_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.toml"
+            path.write_text('''schema_version = 1
+[providers.demo]
+display_name = "Demo"
+base_url = "https://example.test/v1"
+protocol = "chat_completions"
+execution_mode = "direct"
+''', encoding="utf-8")
+            with self.assertRaisesRegex(ConfigError, "requires gateway mode"):
+                load(path)
+            self.assertEqual(load(path, allow_legacy_protocols=True).providers["demo"].protocol, "chat_completions")
 
     def test_invalid_toml_table_shapes_raise_config_error(self):
         with tempfile.TemporaryDirectory() as directory:
