@@ -1,15 +1,28 @@
 from __future__ import annotations
 
-import os
 import json
+import os
 import secrets
 import shutil
 import subprocess
 from pathlib import Path
 
-from .config import Config, Provider, config_path, validate_capability_settings, validate_public_reasoning
+from .config import (
+    Config,
+    Provider,
+    config_path,
+    validate_capability_settings,
+    validate_public_reasoning,
+)
 from .credentials import resolve_token
 from .errors import LaunchError
+
+
+def _bypass_loopback_proxy(env: dict[str, str]) -> None:
+    entries = [value.strip() for key in ("NO_PROXY", "no_proxy") for value in env.get(key, "").split(",") if value.strip()]
+    entries.extend(("127.0.0.1", "localhost", "::1"))
+    merged = ",".join({value.casefold(): value for value in entries}.values())
+    env.update(NO_PROXY=merged, no_proxy=merged)
 
 
 def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
@@ -34,6 +47,7 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         env_name = "CODEX_CA_GATEWAY_TOKEN"
         env[env_name] = gateway_token
         base_url = gateway_url.rstrip("/") + "/v1"
+        _bypass_loopback_proxy(env)
     elif provider.protocol == "responses" and provider.execution_mode in {"direct", "auto"}:
         base_url = provider.base_url
     else:

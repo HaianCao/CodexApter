@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import tomllib
 import types
@@ -5,7 +6,6 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
-import sys
 
 from codex_adapter.config import Config, Provider, SecretReference
 from codex_adapter.errors import LaunchError
@@ -45,6 +45,21 @@ class GatewayLaunchTests(unittest.TestCase):
             "codex_adapter.launcher.resolve_token", return_value="upstream-secret"
         ), self.assertRaises(LaunchError):
             build_invocation(self.config, self.provider, "model-id", "medium", [])
+
+    def test_loopback_proxy_bypass_is_child_only_and_preserves_other_exclusions(self):
+        with patch("codex_adapter.launcher.shutil.which", return_value="codex.exe"), patch("codex_adapter.launcher.resolve_token", return_value="secret"), patch.dict("os.environ", {"NO_PROXY": "internal.test, other.test, localhost", "HTTPS_PROXY": "http://proxy.test:8080"}, clear=True):
+            import os
+
+            before = dict(os.environ)
+            _argv, env = build_invocation(self.config, self.provider, "model-id", "medium", [], gateway_url="http://127.0.0.1:8765", gateway_token="local")
+            self.assertEqual(dict(os.environ), before)
+            self.assertEqual(env["NO_PROXY"], env["no_proxy"])
+            self.assertTrue({"internal.test", "other.test", "localhost", "127.0.0.1", "::1"} <= set(env["NO_PROXY"].split(",")))
+            self.assertEqual(env["HTTPS_PROXY"], before["HTTPS_PROXY"])
+            self.provider.execution_mode = "direct"
+            self.provider.protocol = "responses"
+            _argv, direct = build_invocation(self.config, self.provider, "model-id", "medium", [])
+            self.assertEqual(direct["NO_PROXY"], before["NO_PROXY"])
 
     def test_display_name_quotes_are_valid_toml_overrides(self):
         self.provider.display_name = 'My "Router"'
