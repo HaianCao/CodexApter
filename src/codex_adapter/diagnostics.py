@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 from .catalog import fetch_models
 from .config import Config, Provider
 from .credentials import resolve_token
+from .errors import AdapterError
 
 
 def probe_responses(config: Config, provider: Provider, model: str, *, timeout: float = 20.0) -> str:
@@ -15,7 +16,7 @@ def probe_responses(config: Config, provider: Provider, model: str, *, timeout: 
         return f"SKIP: configured protocol is '{provider.protocol}', not Responses."
     try:
         token = resolve_token(config, provider)
-    except Exception as exc:
+    except (AdapterError, OSError) as exc:
         return f"SKIP: credentials unavailable ({exc})."
 
     headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
@@ -28,6 +29,7 @@ def probe_responses(config: Config, provider: Provider, model: str, *, timeout: 
             status = response.status
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
+        exc.close()
         return f"FAIL: HTTP {exc.code} from /responses."
     except (URLError, TimeoutError) as exc:
         reason = exc.reason if isinstance(exc, URLError) else "request timed out"
@@ -46,13 +48,13 @@ def doctor(config: Config, provider: Provider, model: str) -> list[tuple[str, st
     try:
         resolve_token(config, provider)
         rows.append(("Credentials", "OK"))
-    except Exception as exc:
+    except (AdapterError, OSError) as exc:
         rows.append(("Credentials", f"FAIL: {exc}"))
     if provider.discovery.enabled:
         try:
             models = fetch_models(config, provider)
             rows.append(("Model discovery", f"OK ({len(models)} models)"))
-        except Exception as exc:
+        except (AdapterError, OSError) as exc:
             rows.append(("Model discovery", f"WARN: {exc}"))
     else:
         rows.append(("Model discovery", "Unavailable (manual model IDs allowed)"))

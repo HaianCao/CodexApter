@@ -1,6 +1,6 @@
-import unittest
 import contextlib
 import io
+import unittest
 from unittest.mock import patch
 
 from codex_adapter.cli import main

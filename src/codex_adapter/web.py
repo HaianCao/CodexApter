@@ -72,6 +72,16 @@ def _default_secret_names(provider_id: str) -> tuple[str, str]:
     return f"{provider_id}-main", env_var
 
 
+def _new_secret_names(config: Config, provider_id: str) -> tuple[str, str]:
+    secret_ref, secret_env = _default_secret_names(provider_id)
+    if secret_ref in config.secrets or any(
+        ref.env_var and ref.env_var.casefold() == secret_env.casefold()
+        for ref in config.secrets.values()
+    ):
+        raise ConfigError("This provider ID conflicts with an existing API-key name. Choose another provider ID.")
+    return secret_ref, secret_env
+
+
 def _remove_provider_config(config: Config, provider_id: str) -> str | None:
     provider = config.providers[provider_id]
     secret_ref = provider.auth_secret_ref
@@ -89,6 +99,8 @@ def _remove_provider_config(config: Config, provider_id: str) -> str | None:
 
 def persist_change(config: Config, updated: Config, env_var=None, token=None) -> None:
     """Commit memory only after disk, restoring exact secret bytes on failure."""
+    from .config import validate_secret_names
+    validate_secret_names(updated)
     target = env_file_path(config)
     previous = target.read_bytes() if env_var and token is not None and target.exists() else None
     process_value = os.environ.get(env_var) if env_var else None
@@ -272,7 +284,9 @@ def serve(config: Config) -> int:
                         secret = config.secrets.get(secret_ref)
                         secret_env = secret.env_var if secret else _default_secret_names(provider_id)[1]
                     else:
-                        secret_ref, secret_env = _default_secret_names(provider_id)
+                        # Distinct IDs such as a-b/a_b can derive the same env
+                        # name. Never implicitly share/overwrite an existing key.
+                        secret_ref, secret_env = _new_secret_names(config, provider_id)
                     updated = copy.deepcopy(config)
                     updated.secrets[secret_ref] = SecretReference(secret_ref, env_var=secret_env)
                     updated.providers[provider_id] = Provider(

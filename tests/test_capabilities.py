@@ -52,9 +52,8 @@ def test_failed_preflight_does_not_open_listener_or_launch_cli():
     registry.assess.return_value = report
     gateway = types.SimpleNamespace(capabilities=registry, upstream_base_url=provider.base_url, upstream_protocol="responses", upstream_reasoning="provider_default", require_verified_capabilities=True)
     listener = Mock()
-    with patch("codex_adapter.launcher._gateway", return_value=(gateway, listener)), patch("codex_adapter.launcher.build_invocation") as build:
-        with pytest.raises(LaunchError, match="unsupported=streaming"):
-            preflight(Config(), provider, "model-a", "medium")
+    with patch("codex_adapter.launcher._gateway", return_value=(gateway, listener)), patch("codex_adapter.launcher.build_invocation") as build, pytest.raises(LaunchError, match="unsupported=streaming"):
+        preflight(Config(), provider, "model-a", "medium")
     listener.assert_not_called()
     build.assert_not_called()
     assert registry.assess.call_args.args[2] == "model-a"

@@ -351,6 +351,7 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         models[name] = ModelAlias(name, provider, _string(item.get("model_id"), f"models.{name}.model_id", True), _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None)
     configured_env_file = _string(raw.get("env_file"), "env_file")
     config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None)
+    validate_secret_names(config)
     if defaults.provider and defaults.provider not in providers:
         raise ConfigError(f"defaults.provider references missing provider '{defaults.provider}'.")
     return config
@@ -361,7 +362,20 @@ def _quote(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def validate_secret_names(config: Config) -> None:
+    """Require explicit sharing via one reference, not colliding env names."""
+    owners = {}
+    for name, ref in config.secrets.items():
+        if not ref.env_var:
+            continue
+        normalized = ref.env_var.casefold()
+        if normalized in owners:
+            raise ConfigError(f"Secret references '{owners[normalized]}' and '{name}' use the same environment variable. Use one shared reference or distinct variable names.")
+        owners[normalized] = name
+
+
 def save(config: Config, path: Path | None = None) -> Path:
+    validate_secret_names(config)
     target = path or config.path or config_path()
     lines = ["schema_version = 1", "", "[defaults]"]
     if config.env_file:

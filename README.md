@@ -131,6 +131,11 @@ as Responses `reasoning_text`. It does not convert summaries, encrypted state or
 Messages signatures. Image inputs support URL/base64 user messages, not image
 tool results or provider-owned file IDs. Provider/model support still varies.
 
+Provider IDs must produce distinct API-key variable names (`a-b` and `a_b`
+both normalize to `A_B_TOKEN`). Setup rejects such collisions without changing
+saved keys. To share a key intentionally, point both providers at the same
+secret reference in TOML instead of defining duplicate environment mappings.
+
 ## For contributors
 
 ```powershell

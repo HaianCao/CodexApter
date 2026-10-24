@@ -2,8 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from urllib.error import HTTPError
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from codex_adapter.config import Config, Provider, SecretReference
 from codex_adapter.diagnostics import probe_responses
