@@ -137,6 +137,7 @@ class Provider:
     capabilities_file: str = ""
     require_verified_capabilities: bool = False
     public_reasoning: bool = False
+    gateway_limits: dict = field(default_factory=dict)
 
 
 def validate_public_reasoning(value: Any, protocol: str, mode: str) -> bool:
@@ -337,6 +338,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         capabilities_file, require_verified = validate_capability_settings(item.get("capabilities_file", ""), item.get("require_verified_capabilities", False), mode)
         public_reasoning = validate_public_reasoning(item.get("public_reasoning", False), protocol, mode)
         providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens, upstream_reasoning, system_models, capabilities_file, require_verified, public_reasoning)
+        from .gateway_options import validate_gateway_limits
+        providers[name].gateway_limits = validate_gateway_limits(item.get("gateway_limits", {}), mode)
     models: dict[str, ModelAlias] = {}
     for name, item in models_raw.items():
         _check_id(name, "Model alias")
@@ -369,6 +372,8 @@ def save(config: Config, path: Path | None = None) -> Path:
     for name, secret in sorted(config.secrets.items()):
         lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
     for name, provider in sorted(config.providers.items()):
+        from .gateway_options import limits_toml, validate_gateway_limits
+        limits = validate_gateway_limits(provider.gateway_limits, provider.execution_mode)
         public_reasoning = validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
         capabilities_file, require_verified = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
         if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
@@ -379,6 +384,8 @@ def save(config: Config, path: Path | None = None) -> Path:
         if public_reasoning:
             lines.append("public_reasoning = true")
         lines.append(f"upstream_reasoning = {_quote(provider.upstream_reasoning)}")
+        if limits:
+            lines.append("gateway_limits = " + limits_toml(limits))
         if capabilities_file:
             lines.extend([f"capabilities_file = {_quote(capabilities_file)}", f"require_verified_capabilities = {str(require_verified).lower()}"])
         system_models = validate_system_models(provider.messages_system_models, provider.protocol, provider.execution_mode)

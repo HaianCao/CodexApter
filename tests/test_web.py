@@ -5,15 +5,46 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from unittest.mock import patch
 
-from codex_adapter.config import Config, Defaults, ModelAlias, Provider, SecretReference, load
-from codex_adapter.web import _HTML, _default_secret_names, _remove_provider_config, serve
+from codex_adapter.config import (
+    Config,
+    Defaults,
+    ModelAlias,
+    Provider,
+    SecretReference,
+    load,
+)
+from codex_adapter.web import (
+    _HTML,
+    _default_secret_names,
+    _remove_provider_config,
+    persist_change,
+    serve,
+)
 
 
 class WebConfigTests(unittest.TestCase):
+    def test_failed_save_restores_memory_secret_bytes_and_process_environment(self):
+        import copy
+        import os
+
+        from codex_adapter.credentials import store_token
+
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
+            config = Config(providers={"demo": Provider("demo", "Old", "https://example.test/v1")}, path=Path(directory) / "config.toml", env_file=Path(directory) / ".env")
+            store_token("DEMO_TOKEN", "fixture-old", config=config)
+            before = config.env_file.read_bytes()
+            updated = copy.deepcopy(config)
+            updated.providers["demo"].display_name = "Changed"
+            with patch("codex_adapter.web.save", side_effect=OSError("disk failure")), self.assertRaises(OSError):
+                persist_change(config, updated, "DEMO_TOKEN", "fixture-new")
+            self.assertEqual(config.providers["demo"].display_name, "Old")
+            self.assertEqual(config.env_file.read_bytes(), before)
+            self.assertEqual(os.environ["DEMO_TOKEN"], "fixture-old")
+
     def test_page_uses_full_artwork_for_header_and_icon_variants_for_favicon(self):
         self.assertIn('id="brandLogo" src="/assets/CodexApter_black.png"', _HTML)
         self.assertIn('id="favicon" rel="icon" type="image/png" href="/assets/CodexApter_black_icon.png"', _HTML)
@@ -79,6 +110,7 @@ class WebConfigTests(unittest.TestCase):
                 url = opened.get(timeout=3)
                 html = urlopen(url, timeout=3).read().decode("utf-8")
                 token = re.search(r"const SESSION_TOKEN = '([^']+)'", html).group(1)
+                url = url.split("?", 1)[0]
                 for extra_fields in ({"upstream_reasoning": "openrouter_disabled", "capabilities_file": "checks.json", "require_verified_capabilities": True}, {}):
                     edit = Request(
                         url + "api/provider",

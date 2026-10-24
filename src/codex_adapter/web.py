@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import secrets
 import threading
 import webbrowser
@@ -11,10 +12,24 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .catalog import cached_models, fetch_models
-from .config import Config, Discovery, Provider, SecretReference, save, validate_base_url, validate_system_models, validate_capability_settings, validate_public_reasoning
+from .config import (
+    Config,
+    Discovery,
+    Provider,
+    SecretReference,
+    config_path,
+    save,
+    validate_base_url,
+    validate_capability_settings,
+    validate_public_reasoning,
+    validate_system_models,
+)
 from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
+from .gateway_options import validate_gateway_limits
 from .launcher import launch, preflight
+from .settings_store import SettingsGuard, atomic_bytes
+from .web_security import local_request
 
 
 def public_config(config: Config) -> dict:
@@ -33,6 +48,7 @@ def public_config(config: Config) -> dict:
                 "capabilities_file": provider.capabilities_file,
                 "require_verified_capabilities": provider.require_verified_capabilities,
                 "public_reasoning": provider.public_reasoning,
+                "gateway_limits": provider.gateway_limits,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -71,16 +87,50 @@ def _remove_provider_config(config: Config, provider_id: str) -> str | None:
     return None
 
 
+def persist_change(config: Config, updated: Config, env_var=None, token=None) -> None:
+    """Commit memory only after disk, restoring exact secret bytes on failure."""
+    target = env_file_path(config)
+    previous = target.read_bytes() if env_var and token is not None and target.exists() else None
+    process_value = os.environ.get(env_var) if env_var else None
+    updated.env_file = target
+    try:
+        if env_var and token is not None:
+            if token:
+                store_token(env_var, token, config=updated)
+            else:
+                remove_token(env_var, config=updated)
+        save(updated)
+    except Exception:
+        if env_var and token is not None:
+            try:
+                if previous is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    atomic_bytes(target, previous)
+            except OSError:
+                raise AdapterError("Saving settings and restoring the API key failed. Check local storage permissions.") from None
+            finally:
+                if process_value is None:
+                    os.environ.pop(env_var, None)
+                else:
+                    os.environ[env_var] = process_value
+        raise
+    config.defaults, config.providers, config.secrets = updated.defaults, updated.providers, updated.secrets
+    config.models, config.env_file = updated.models, updated.env_file
+
+
 def serve(config: Config) -> int:
     session_token = secrets.token_urlsafe(32)
     run_request: tuple[Provider, str, str] | None = None
+    state_lock = threading.RLock()
+    guard = SettingsGuard(config.path or config_path())
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             return
 
         def _authorized(self) -> bool:
-            return secrets.compare_digest(self.headers.get("X-Codex-Apter-Token", ""), session_token)
+            return local_request(self.headers, server.server_port) and secrets.compare_digest(self.headers.get("X-Codex-Apter-Token", ""), session_token)
 
         def _json(self, value, status: int = HTTPStatus.OK):
             body = json.dumps(value, ensure_ascii=False).encode("utf-8")
@@ -95,7 +145,7 @@ def serve(config: Config) -> int:
         def _body(self) -> dict:
             try:
                 length = int(self.headers.get("Content-Length", "0"))
-                if length > 64_000:
+                if length < 1 or length > 64_000:
                     raise AdapterError("Request body is too large.")
                 value = json.loads(self.rfile.read(length))
             except (ValueError, json.JSONDecodeError) as exc:
@@ -111,14 +161,20 @@ def serve(config: Config) -> int:
             return provider
 
         def do_GET(self):
+            if not local_request(self.headers, server.server_port):
+                self._json({"error": "Setup is local-only."}, HTTPStatus.FORBIDDEN)
+                return
             parsed = urlparse(self.path)
             if parsed.path == "/":
-                # The token remains in the URL only for the initial local page load;
-                # no configuration or secret is embedded in the HTML response.
+                supplied = parse_qs(parsed.query).get("token", [""])[0]
+                if not secrets.compare_digest(supplied, session_token):
+                    self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
+                    return
                 page = _HTML.replace("__SESSION_TOKEN__", session_token).encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
+                self.send_header("Referrer-Policy", "no-referrer")
                 self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Length", str(len(page)))
@@ -151,7 +207,8 @@ def serve(config: Config) -> int:
                 self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
                 return
             if parsed.path == "/api/config":
-                self._json(public_config(config))
+                with state_lock:
+                    self._json(public_config(config))
                 return
             if parsed.path == "/api/models":
                 provider_id = parse_qs(parsed.query).get("provider", [""])[0]
@@ -165,12 +222,25 @@ def serve(config: Config) -> int:
             self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
         def do_POST(self):
+            if not self._authorized():
+                self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
+                return
+            try:
+                self.connection.settimeout(15)
+                body = self._body()
+                with state_lock, guard.edit():
+                    self._post(body)
+            except OSError:
+                self._json({"error": "Could not save settings. Check local storage permissions."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            except (AdapterError, ValueError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+        def _post(self, body):
             nonlocal run_request
             if not self._authorized():
                 self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
                 return
             try:
-                body = self._body()
                 path = urlparse(self.path).path
                 if path == "/api/provider":
                     provider_id = str(body.get("id", "")).strip()
@@ -203,8 +273,9 @@ def serve(config: Config) -> int:
                         secret_env = secret.env_var if secret else _default_secret_names(provider_id)[1]
                     else:
                         secret_ref, secret_env = _default_secret_names(provider_id)
-                    config.secrets[secret_ref] = SecretReference(secret_ref, env_var=secret_env)
-                    config.providers[provider_id] = Provider(
+                    updated = copy.deepcopy(config)
+                    updated.secrets[secret_ref] = SecretReference(secret_ref, env_var=secret_env)
+                    updated.providers[provider_id] = Provider(
                         id=provider_id,
                         display_name=display_name,
                         base_url=base_url,
@@ -212,19 +283,21 @@ def serve(config: Config) -> int:
                         execution_mode=execution_mode,
                         auth_secret_ref=secret_ref,
                         default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
-                        discovery=Discovery(enabled=bool(body.get("discovery", True))),
+                        discovery=copy.deepcopy(current.discovery) if current else Discovery(enabled=True),
                         gateway_max_output_tokens=max_tokens,
                         upstream_reasoning=upstream_reasoning,
                         messages_system_models=system_models,
                         capabilities_file=capabilities_file,
                         require_verified_capabilities=require_verified,
                         public_reasoning=public_reasoning,
+                        gateway_limits=validate_gateway_limits(body.get("gateway_limits", current.gateway_limits if current else {}), execution_mode),
                     )
                     api_key = str(body.get("api_key", ""))
-                    if api_key:
-                        store_token(secret_env, api_key, config=config)
-                    config.env_file = env_file_path(config)
-                    save(config)
+                    if "discovery" in body:
+                        if not isinstance(body["discovery"], bool):
+                            raise ConfigError("Discovery must be a boolean.")
+                        updated.providers[provider_id].discovery.enabled = body["discovery"]
+                    persist_change(config, updated, secret_env, api_key or None)
                     self._json(public_config(config))
                     return
                 if path == "/api/default":
@@ -232,13 +305,13 @@ def serve(config: Config) -> int:
                     model = str(body.get("model", "")).strip()
                     if not model:
                         raise ConfigError("Choose a model or enter a model ID.")
-                    config.defaults.provider = provider.id
-                    config.defaults.model = model
-                    config.defaults.reasoning_effort = str(body.get("reasoning", "medium"))
-                    if config.defaults.reasoning_effort not in {"low", "medium", "high"}:
+                    updated = copy.deepcopy(config)
+                    updated.defaults.provider = provider.id
+                    updated.defaults.model = model
+                    updated.defaults.reasoning_effort = str(body.get("reasoning", "medium"))
+                    if updated.defaults.reasoning_effort not in {"low", "medium", "high"}:
                         raise ConfigError("Reasoning effort must be low, medium, or high.")
-                    config.env_file = env_file_path(config)
-                    save(config)
+                    persist_change(config, updated)
                     self._json(public_config(config))
                     return
                 if path == "/api/models/refresh":
@@ -256,9 +329,9 @@ def serve(config: Config) -> int:
                     # Show executable, credential, or gateway failures before
                     # persisting defaults and closing the setup page.
                     preflight(config, provider, model, reasoning)
-                    config.defaults.provider, config.defaults.model, config.defaults.reasoning_effort = provider.id, model, reasoning
-                    config.env_file = env_file_path(config)
-                    save(config)
+                    updated = copy.deepcopy(config)
+                    updated.defaults.provider, updated.defaults.model, updated.defaults.reasoning_effort = provider.id, model, reasoning
+                    persist_change(config, updated)
                     run_request = (provider, model, reasoning)
                     self._json({"started": True})
                     threading.Thread(target=server.shutdown, daemon=True).start()
@@ -271,6 +344,16 @@ def serve(config: Config) -> int:
             if not self._authorized():
                 self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
                 return
+            try:
+                with state_lock, guard.edit():
+                    self._delete()
+            except (OSError, AdapterError, ValueError):
+                self._json({"error": "Could not remove provider; settings were not committed. Reopen setup if settings changed elsewhere."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        def _delete(self):
+            if not self._authorized():
+                self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
+                return
             provider_id = parse_qs(urlparse(self.path).query).get("provider", [""])[0]
             if provider_id not in config.providers:
                 self._json({"error": "Unknown provider"}, HTTPStatus.NOT_FOUND)
@@ -278,7 +361,7 @@ def serve(config: Config) -> int:
             updated_config = copy.deepcopy(config)
             env_var_to_remove = _remove_provider_config(updated_config, provider_id)
             try:
-                save(updated_config)
+                persist_change(config, updated_config, env_var_to_remove, "" if env_var_to_remove else None)
             except (OSError, ConfigError) as exc:
                 self._json({"error": f"Could not save provider changes: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 return
@@ -286,17 +369,11 @@ def serve(config: Config) -> int:
             config.secrets = updated_config.secrets
             config.models = updated_config.models
             config.defaults = updated_config.defaults
-            if env_var_to_remove:
-                try:
-                    remove_token(env_var_to_remove, config=config)
-                except OSError:
-                    self._json({"error": "Provider was removed, but its saved API key could not be deleted from the .env file."}, HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
             self._json(public_config(config))
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
-    url = f"http://127.0.0.1:{server.server_port}/"
+    url = f"http://127.0.0.1:{server.server_port}/?token={session_token}"
     print("Opened CodexApter setup in your browser. Press Ctrl+C here to stop the local server.")
     webbrowser.open(url)
     try:

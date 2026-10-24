@@ -7,11 +7,26 @@ import time
 import uuid
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .config import Config, Provider, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open(request, *, timeout):
+    return build_opener(_NoRedirect()).open(request, timeout=timeout)
+
+
+def _identity(provider: Provider) -> dict:
+    return {"base_url": provider.base_url, "protocol": provider.protocol,
+            "discovery_path": provider.discovery.path, "response_format": provider.discovery.response_format,
+            "auth_secret_ref": provider.auth_secret_ref}
 
 
 def _read_cache(path: Path | None = None) -> dict:
@@ -38,7 +53,7 @@ def _write_cache(data: dict, path: Path | None = None) -> None:
 
 def cached_models(provider: Provider, path: Path | None = None) -> tuple[list[str], bool]:
     entry = _read_cache(path).get("providers", {}).get(provider.id, {})
-    if not isinstance(entry, dict):
+    if not isinstance(entry, dict) or entry.get("identity") != _identity(provider):
         return [], True
     models = entry.get("models", [])
     if not isinstance(models, list):
@@ -61,12 +76,13 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
         headers["Authorization"] = f"Bearer {token}"
     request = Request(provider.base_url + provider.discovery.path, headers=headers, method="GET")
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with _open(request, timeout=timeout) as response:
             raw = response.read(8_000_001)
             if len(raw) > 8_000_000:
                 raise DiscoveryError("Model discovery response is too large (limit: 8 MB).")
             payload = json.loads(raw.decode("utf-8"))
     except HTTPError as exc:
+        exc.close()
         raise DiscoveryError(f"Model discovery failed for '{provider.id}': HTTP {exc.code}.") from exc
     except (URLError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DiscoveryError(f"Model discovery failed for '{provider.id}': {exc.reason if isinstance(exc, URLError) else type(exc).__name__}.") from exc
@@ -77,6 +93,9 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
     if not models:
         raise DiscoveryError("Model discovery returned no usable model IDs.")
     saved = _read_cache(cache)
-    saved.setdefault("providers", {})[provider.id] = {"fetched_at": time.time(), "models": models}
-    _write_cache(saved, cache)
+    saved.setdefault("providers", {})[provider.id] = {"identity": _identity(provider), "fetched_at": time.time(), "models": models}
+    try:
+        _write_cache(saved, cache)
+    except OSError:
+        pass  # A cache failure must not discard a successful discovery.
     return models

@@ -4,8 +4,9 @@ import json
 import os
 from pathlib import Path
 
-from .config import Provider, Config, config_path
+from .config import Config, Provider, config_path
 from .errors import CredentialError
+from .settings_store import atomic_bytes
 
 
 def env_file_path(config: Config | None = None) -> Path:
@@ -63,7 +64,7 @@ def store_token(env_var: str, token: str, path: Path | None = None, *, config: C
     target = path or env_file_path(config)
     values = _read_dotenv(target)
     values[env_var] = token
-    target.write_text("".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())), encoding="utf-8")
+    atomic_bytes(target, "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode("utf-8"))
     os.environ[env_var] = token
 
 
@@ -74,7 +75,7 @@ def remove_token(env_var: str, path: Path | None = None, *, config: Config | Non
     values.pop(env_var, None)
     if target.exists():
         if values:
-            target.write_text("".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())), encoding="utf-8")
+            atomic_bytes(target, "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode("utf-8"))
         else:
             target.unlink()
     os.environ.pop(env_var, None)

@@ -16,6 +16,7 @@ from .config import (
 )
 from .credentials import resolve_token
 from .errors import LaunchError
+from .gateway_options import validate_gateway_limits
 
 
 def _bypass_loopback_proxy(env: dict[str, str]) -> None:
@@ -92,6 +93,7 @@ def _gateway(config: Config, provider: Provider):
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
         registry_options = {}
+        registry_options.update(validate_gateway_limits(provider.gateway_limits, provider.execution_mode))
         if validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode):
             registry_options["public_reasoning"] = True
         capabilities_file, required = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
