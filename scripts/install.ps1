@@ -1,9 +1,15 @@
-param([switch]$SkipCodexInstall, [switch]$NonInteractive)
+param([switch]$SkipCodexInstall, [switch]$NonInteractive, [switch]$NoPathChanges)
 $ErrorActionPreference = 'Stop'
 $sourceTempRoot = $null
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
+
+function Test-CodexApterSource([string]$Directory) {
+    $project = Join-Path $Directory 'pyproject.toml'
+    if (-not (Test-Path -LiteralPath $project)) { return $false }
+    return [bool]([regex]::IsMatch((Get-Content -LiteralPath $project -Raw), '(?m)^name\s*=\s*"codexapter"\s*$'))
 }
 
 function Get-SupportedPython {
@@ -31,6 +37,7 @@ function Get-SupportedPython {
 }
 
 function Add-UserPath([string]$Directory) {
+    if ($NoPathChanges) { return }
     if (-not (Test-Path -LiteralPath $Directory)) { return }
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
     $entries = @($current -split ';' | Where-Object { $_ })
@@ -44,6 +51,7 @@ function Add-UserPath([string]$Directory) {
 }
 
 function Remove-UserPath([string]$Directory) {
+    if ($NoPathChanges) { return }
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
     $entries = @($current -split ';' | Where-Object { $_ })
     $kept = @($entries | Where-Object { $_.TrimEnd('\') -ine $Directory.TrimEnd('\') })
@@ -57,17 +65,16 @@ try {
     $repoRoot = $null
     if ($PSScriptRoot) {
         $candidate = Split-Path -Parent $PSScriptRoot
-        if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
+        if (Test-CodexApterSource $candidate) { $repoRoot = $candidate }
     }
     if (-not $repoRoot) {
         $candidate = (Get-Location).Path
-        if (Test-Path -LiteralPath (Join-Path $candidate 'pyproject.toml')) { $repoRoot = $candidate }
+        if (Test-CodexApterSource $candidate) { $repoRoot = $candidate }
     }
 
-    Write-Host 'This installer installs Codex CLI and CodexApter (codex-ca) for your Windows user only.' -ForegroundColor White
-    Write-Host 'It may download Python and software from the official Codex installer. It does not request administrator access.'
+    Write-Host 'This installs or updates CodexApter (codex-ca) for your Windows user.' -ForegroundColor White
+    Write-Host 'Missing Python or the official coding CLI may be installed. No administrator access is requested.'
     if (-not $repoRoot) { Write-Host 'The CodexApter source will be downloaded from the project GitHub repository.' }
-    Write-Host 'After installation, run codex-ca setup whenever you are ready to configure a provider and API key.'
     if (-not $NonInteractive -and (Read-Host 'Continue? [y/N]') -notmatch '^(y|yes)$') { return }
 
     if (-not $repoRoot) {
@@ -76,14 +83,14 @@ try {
         $archivePath = "$sourceTempRoot.zip"
         New-Item -ItemType Directory -Path $sourceTempRoot -Force | Out-Null
         try {
-            Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/HaianCao/free-codex-cli/archive/refs/heads/main.zip' -OutFile $archivePath
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/HaianCao/CodexApter/archive/refs/heads/main.zip' -OutFile $archivePath
             Expand-Archive -LiteralPath $archivePath -DestinationPath $sourceTempRoot -Force
         }
         finally {
             Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue
         }
-        $projectFile = Get-ChildItem -LiteralPath $sourceTempRoot -Filter 'pyproject.toml' -File -Recurse | Select-Object -First 1
-        if (-not $projectFile) { throw 'Downloaded repository does not contain pyproject.toml.' }
+        $projectFile = Get-ChildItem -LiteralPath $sourceTempRoot -Filter 'pyproject.toml' -File -Recurse | Where-Object { Test-CodexApterSource $_.Directory.FullName } | Select-Object -First 1
+        if (-not $projectFile) { throw 'Downloaded archive does not contain a CodexApter project.' }
         $repoRoot = $projectFile.Directory.FullName
     }
 
@@ -104,9 +111,12 @@ try {
     }
     Write-Host "Using Python: $pythonExe"
 
-    Write-Step 'Installing the official Codex CLI'
+    Write-Step 'Checking the official Codex CLI'
     $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
+    if ($SkipCodexInstall) { Write-Host 'Skipped official CLI installation (-SkipCodexInstall).' }
+    elseif ($codexCommand) { Write-Host 'Official CLI is already available; left unchanged.' }
     if (-not $codexCommand -and -not $SkipCodexInstall) {
+        Write-Step 'Installing the official Codex CLI'
         $installerPath = Join-Path ([IO.Path]::GetTempPath()) ("codex-install-{0}.ps1" -f [guid]::NewGuid())
         try {
             Invoke-WebRequest -UseBasicParsing -Uri 'https://chatgpt.com/codex/install.ps1' -OutFile $installerPath
@@ -132,10 +142,10 @@ try {
     $codexCaExe = Join-Path $venv 'Scripts\codex-ca.exe'
     $isUpdate = (Test-Path -LiteralPath $codexCaExe) -or (Test-Path -LiteralPath $legacyExe)
     if ($isUpdate) {
-        Write-Step 'Updating or migrating CodexApter in the existing user installation'
+        Write-Step 'Updating CodexApter'
     }
     else {
-        Write-Step 'Installing CodexApter in a dedicated user Python environment'
+        Write-Step 'Installing CodexApter'
     }
     if (-not (Test-Path -LiteralPath $venvPython)) {
         New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
@@ -181,24 +191,23 @@ try {
     }
 
     if ($isUpdate) {
-        Write-Host 'CodexApter has been updated. Your existing provider configuration and API keys were left unchanged.' -ForegroundColor Green
-        Write-Host 'Run codex-ca setup if you want to review or change your settings.'
-    }
-    if ($isUpdate) {
-        Write-Host "`nCodexApter update complete. Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca." -ForegroundColor Green
-        Write-Host 'The Codex CLI itself was not updated.'
+        Write-Host 'CodexApter update complete. Provider settings and API keys were preserved.' -ForegroundColor Green
     }
     else {
-        Write-Host "`nCodexApter installation complete. Setup was not opened automatically." -ForegroundColor Green
-        Write-Host 'Open a new CMD, PowerShell, or Windows Terminal tab and run codex-ca setup when you are ready.'
+        Write-Host 'CodexApter installation complete.' -ForegroundColor Green
     }
+    Write-Host 'Open a new CMD, PowerShell, or Windows Terminal tab and run: codex-ca setup'
 }
 catch {
     Write-Host "`nSetup failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
 finally {
-    if ($sourceTempRoot -and (Test-Path -LiteralPath $sourceTempRoot)) {
-        Remove-Item -LiteralPath $sourceTempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if ($sourceTempRoot) {
+        $tempParent = [IO.Path]::GetFullPath((Split-Path -Parent $sourceTempRoot)).TrimEnd('\')
+        $expectedParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+        if ($tempParent -ieq $expectedParent -and (Split-Path -Leaf $sourceTempRoot) -like 'codexapter-source-*' -and (Test-Path -LiteralPath $sourceTempRoot)) {
+            Remove-Item -LiteralPath $sourceTempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }

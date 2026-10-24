@@ -82,7 +82,9 @@ In PowerShell, run the uninstaller from GitHub:
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/main/scripts/uninstall.ps1")))
 ```
 
-The uninstaller removes the CodexApter launcher and its PATH entry. It keeps provider settings and API keys by default; you can separately confirm their deletion. The official Codex CLI is not removed.
+It removes the launcher and its wrapper PATH entries, not the official Codex CLI. Separate prompts let you reset adapter environment overrides and delete default provider settings, API keys and cache (type `DELETE`). Everything is kept unless you confirm its removal.
+
+Environment reset clears only `CODEX_CA_CONFIG`, `CODEX_CA_CACHE` and `CODEX_CA_ENV_FILE` at user/process scope. It does not delete custom-path files, provider key variables, or shared `ANTHROPIC_*`/`OPENAI_*` variables. Machine-wide settings are not changed. Open a new terminal afterward. To explicitly request reset without prompts, append `-ResetEnvironment -NonInteractive`; data deletion still requires interactive confirmation.
 
 ## Privacy and security
 

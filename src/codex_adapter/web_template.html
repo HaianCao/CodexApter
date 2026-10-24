@@ -151,7 +151,8 @@
             <label class="field"><span class="field-label">Provider ID</span><input class="input" id="providerId" placeholder="agent_router" autocomplete="off" pattern="[a-z0-9][a-z0-9_-]*" title="Lowercase letters, digits, underscores or hyphens; no spaces."><span class="hint">Lowercase, no spaces. Use _ or - between words.</span></label>
             <label class="field"><span class="field-label">Display name</span><input class="input" id="displayName" placeholder="Agent Router" autocomplete="off"></label>
           </div>
-          <label class="field"><span class="field-label">Base URL</span><input class="input" id="baseUrl" placeholder="https://provider.example/v1" autocomplete="url"></label>
+          <label class="field"><span class="field-label">Base URL</span><input class="input" id="baseUrl" placeholder="https://provider.example/v1" autocomplete="url"><span class="hint">Example: <code>https://provider.example/v1</code>. Include the provider's API prefix; do not include /responses.</span></label>
+          <label class="field"><span class="field-label">Authentication</span><input class="input" value="Bearer token (recommended)" readonly aria-readonly="true"><span class="hint">CodexApter uses the Authorization: Bearer header. Paste only the API key below, without the Bearer prefix.</span></label>
           <label class="field"><span class="field-label">API key <span>Optional when editing</span></span><input class="input" id="apiKey" type="password" placeholder="Paste API key" autocomplete="new-password"></label>
           <label class="check"><input id="discoveryEnabled" type="checkbox" checked> Automatically discover models from <code>/models</code></label>
           <div class="actions"><button id="saveProvider" class="btn primary" type="button">Save provider</button><button id="cancelEdit" class="btn" type="button">Cancel</button></div>
