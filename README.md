@@ -120,6 +120,19 @@ It removes the launcher and its wrapper PATH entries, not the official Codex CLI
 
 Environment reset clears only `CODEX_CA_CONFIG`, `CODEX_CA_CACHE` and `CODEX_CA_ENV_FILE` at user/process scope. It does not delete custom-path files, provider key variables, or shared `ANTHROPIC_*`/`OPENAI_*` variables. Machine-wide settings are not changed. Open a new terminal afterward. To explicitly request reset without prompts, append `-ResetEnvironment -NonInteractive`; data deletion still requires interactive confirmation.
 
+## Advanced gateway settings
+
+On the integration branch, gateway providers can choose Bearer (recommended) or
+x-api-key authentication independently of protocol. Existing Messages configs
+without an auth_mode keep their previous x-api-key behavior. New providers
+default to Bearer; direct Codex connections use Bearer.
+
+Optional advanced gateway policies support evidence-scoped provider profile
+files, shared quota databases and bounded HTTP-rejection retries. Leave them
+blank for existing behavior. These options and client tool-search emulation
+require the matching unpublished Protoverta source build, not the older public
+alpha-6 wheel. They do not enable hidden reasoning migration or model fallback.
+
 ## Privacy and security
 
 Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). Direct mode does not proxy conversations; gateway mode starts a temporary loopback Protoverta server and stops it when Codex exits.
@@ -130,8 +143,10 @@ For Chat providers returning unsigned `reasoning_content`, the provider editor
 offers **Advanced: public reasoning text** (`public_reasoning = true` in TOML).
 This opt-in keeps public reasoning separate from the answer and supports replay
 as Responses `reasoning_text`. It does not convert summaries, encrypted state or
-Messages signatures. Image inputs support URL/base64 user messages, not image
-tool results or provider-owned file IDs. Provider/model support still varies.
+Messages signatures. Image inputs support URL/base64 user messages, not
+provider-owned file IDs. Rich text/image tool results map Messages ↔ Responses;
+Chat targets reject image tool results rather than moving them to user content.
+Provider/model support still varies.
 
 Provider IDs must produce distinct API-key variable names (`a-b` and `a_b`
 both normalize to `A_B_TOKEN`). Setup rejects such collisions without changing

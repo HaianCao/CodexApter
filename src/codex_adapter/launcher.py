@@ -11,12 +11,14 @@ from .config import (
     Config,
     Provider,
     config_path,
+    validate_auth_mode,
     validate_capability_settings,
+    validate_client_tool_search,
     validate_public_reasoning,
 )
 from .credentials import resolve_token
 from .errors import LaunchError
-from .gateway_options import validate_gateway_limits
+from .gateway_options import runtime_options, validate_gateway_limits
 
 
 def _bypass_loopback_proxy(env: dict[str, str]) -> None:
@@ -27,6 +29,8 @@ def _bypass_loopback_proxy(env: dict[str, str]) -> None:
 
 
 def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
+    validate_auth_mode(provider.auth_mode, provider.execution_mode)
+    validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
     validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
     validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
     if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
@@ -93,6 +97,9 @@ def _gateway(config: Config, provider: Provider):
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
         registry_options = {}
+        registry_options.update(runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path()))
+        if validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode) == "function":
+            registry_options["client_tool_search"] = "function"
         registry_options.update(validate_gateway_limits(provider.gateway_limits, provider.execution_mode))
         if validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode):
             registry_options["public_reasoning"] = True
@@ -106,7 +113,7 @@ def _gateway(config: Config, provider: Provider):
             registry_options.update(capabilities=CapabilityRegistry.load(path), require_verified_capabilities=required)
         gateway = GatewayConfig(
             upstream, provider.base_url, token, secrets.token_urlsafe(32),
-            "x-api-key" if upstream == Protocol.MESSAGES else "bearer",
+            "x-api-key" if validate_auth_mode(provider.auth_mode, provider.execution_mode) == "api_key" else "bearer",
             client_profile="codex" if upstream != Protocol.RESPONSES else "strict",
             default_max_output_tokens=provider.gateway_max_output_tokens,
             upstream_reasoning=provider.upstream_reasoning,

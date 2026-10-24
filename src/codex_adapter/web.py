@@ -19,14 +19,16 @@ from .config import (
     SecretReference,
     config_path,
     save,
+    validate_auth_mode,
     validate_base_url,
     validate_capability_settings,
+    validate_client_tool_search,
     validate_public_reasoning,
     validate_system_models,
 )
 from .credentials import env_file_path, remove_token, store_token
 from .errors import AdapterError, ConfigError
-from .gateway_options import validate_gateway_limits
+from .gateway_options import validate_gateway_limits, validate_gateway_runtime
 from .launcher import launch, preflight
 from .settings_store import SettingsGuard, atomic_bytes
 from .web_security import local_request
@@ -41,6 +43,8 @@ def public_config(config: Config) -> dict:
                 "display_name": provider.display_name,
                 "base_url": provider.base_url,
                 "protocol": provider.protocol,
+                "auth_mode": provider.auth_mode,
+                "client_tool_search": provider.client_tool_search,
                 "execution_mode": provider.execution_mode,
                 "gateway_max_output_tokens": provider.gateway_max_output_tokens,
                 "upstream_reasoning": provider.upstream_reasoning,
@@ -49,6 +53,7 @@ def public_config(config: Config) -> dict:
                 "require_verified_capabilities": provider.require_verified_capabilities,
                 "public_reasoning": provider.public_reasoning,
                 "gateway_limits": provider.gateway_limits,
+                "gateway_runtime": provider.gateway_runtime,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -213,7 +218,10 @@ def serve(config: Config) -> int:
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
-                self.wfile.write(payload)
+                try:
+                    self.wfile.write(payload)
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    pass  # A closed tab can cancel an in-flight brand asset.
                 return
             if not self._authorized():
                 self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
@@ -294,6 +302,8 @@ def serve(config: Config) -> int:
                         display_name=display_name,
                         base_url=base_url,
                         protocol=protocol,
+                        auth_mode=validate_auth_mode(body.get("auth_mode", current.auth_mode if current else "bearer"), execution_mode),
+                        client_tool_search=validate_client_tool_search(body.get("client_tool_search", current.client_tool_search if current else "reject"), protocol, execution_mode),
                         execution_mode=execution_mode,
                         auth_secret_ref=secret_ref,
                         default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
@@ -305,6 +315,7 @@ def serve(config: Config) -> int:
                         require_verified_capabilities=require_verified,
                         public_reasoning=public_reasoning,
                         gateway_limits=validate_gateway_limits(body.get("gateway_limits", current.gateway_limits if current else {}), execution_mode),
+                        gateway_runtime=validate_gateway_runtime(body.get("gateway_runtime", current.gateway_runtime if current else {}), execution_mode),
                     )
                     api_key = str(body.get("api_key", ""))
                     if "discovery" in body:

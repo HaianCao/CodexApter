@@ -26,7 +26,7 @@ def _open(request, *, timeout):
 def _identity(provider: Provider) -> dict:
     return {"base_url": provider.base_url, "protocol": provider.protocol,
             "discovery_path": provider.discovery.path, "response_format": provider.discovery.response_format,
-            "auth_secret_ref": provider.auth_secret_ref}
+            "auth_secret_ref": provider.auth_secret_ref, "auth_mode": provider.auth_mode}
 
 
 def _read_cache(path: Path | None = None) -> dict:
@@ -73,7 +73,7 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
     headers = {"Accept": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
     token = resolve_token(config, provider, required=False)
     if token:
-        headers["Authorization"] = f"Bearer {token}"
+        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = token if provider.auth_mode == "api_key" else f"Bearer {token}"
     request = Request(provider.base_url + provider.discovery.path, headers=headers, method="GET")
     try:
         with _open(request, timeout=timeout) as response:
