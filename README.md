@@ -66,7 +66,10 @@ reasoning cannot be translated, or **Disabled — standard API** for compatible
 upstreams. Disabling requires gateway mode and overrides effort; models requiring
 reasoning may reject it. Unsupported reasoning output is never silently hidden.
 
-To install the opt-in gateway preview from `integration/protoverta`, run:
+This checkout prepares gateway preview **0.2.0a1** with Protoverta **0.3.0a7**.
+Until those snapshots are published, use the local installer with
+`-ProtovertaWheel PATH_TO_A7_WHEEL`; the public a6 wheel lacks the new runtime
+options. Once the matching preview/core are published, install with:
 
 ```powershell
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/integration/protoverta/scripts/install.ps1"))) -WithGateway -SourceBranch integration/protoverta
