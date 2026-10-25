@@ -166,6 +166,8 @@ def serve(config: Config) -> int:
                 if length < 1 or length > 64_000:
                     raise AdapterError("Request body is too large.")
                 value = json.loads(self.rfile.read(length))
+            except RecursionError:
+                raise AdapterError("JSON request nesting is too deep.") from None
             except (ValueError, json.JSONDecodeError) as exc:
                 raise AdapterError("Invalid JSON request.") from exc
             if not isinstance(value, dict):
