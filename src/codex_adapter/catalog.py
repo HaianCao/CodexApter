@@ -25,10 +25,13 @@ def _open(request, *, timeout):
 
 
 def _identity(provider: Provider, config=None) -> dict:
+    from .gateway_options import catalog_policy_fingerprint
+
     result = {"base_url": provider.base_url, "protocol": provider.protocol,
             "discovery_path": provider.discovery.path, "response_format": provider.discovery.response_format,
             "auth_secret_ref": provider.auth_secret_ref, "auth_mode": provider.auth_mode,
             "catalog_policy_file": provider.gateway_runtime.get("catalog_policy_file", "")}
+    result["catalog_policy_fingerprint"] = catalog_policy_fingerprint(config.path if config else None, provider)
     if config is not None:
         token = resolve_token(config, provider, required=False)
         if token:

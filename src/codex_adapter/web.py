@@ -7,7 +7,6 @@ import secrets
 import threading
 import webbrowser
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -31,7 +30,9 @@ from .errors import AdapterError, ConfigError
 from .gateway_options import validate_gateway_limits, validate_gateway_runtime
 from .launcher import launch, preflight
 from .settings_store import SettingsGuard, atomic_bytes
-from .web_security import local_request
+from .web_http import SetupHTTPServer as ThreadingHTTPServer
+from .web_http import SetupRequestHandler as BaseHTTPRequestHandler
+from .web_security import local_request, token_matches
 
 
 def public_config(config: Config) -> dict:
@@ -147,7 +148,7 @@ def serve(config: Config) -> int:
             return
 
         def _authorized(self) -> bool:
-            return local_request(self.headers, server.server_port) and secrets.compare_digest(self.headers.get("X-Codex-Apter-Token", ""), session_token)
+            return local_request(self.headers, server.server_port) and token_matches(self.headers.get("X-Codex-Apter-Token", ""), session_token)
 
         def _json(self, value, status: int = HTTPStatus.OK):
             body = json.dumps(value, ensure_ascii=False).encode("utf-8")
@@ -184,7 +185,7 @@ def serve(config: Config) -> int:
             parsed = urlparse(self.path)
             if parsed.path == "/":
                 supplied = parse_qs(parsed.query).get("token", [""])[0]
-                if not secrets.compare_digest(supplied, session_token):
+                if not token_matches(supplied, session_token):
                     self._json({"error": "Unauthorized"}, HTTPStatus.FORBIDDEN)
                     return
                 page = _HTML.replace("__SESSION_TOKEN__", session_token).encode("utf-8")
@@ -230,6 +231,15 @@ def serve(config: Config) -> int:
                 with state_lock:
                     self._json(public_config(config))
                 return
+            if parsed.path == "/api/diagnostics":
+                from .gateway_options import diagnostic_report
+
+                provider = config.providers.get(parse_qs(parsed.query).get("provider", [""])[0])
+                if not provider:
+                    self._json({"error": "Unknown provider"}, HTTPStatus.NOT_FOUND)
+                    return
+                self._json(diagnostic_report(config.path or config_path(), provider))
+                return
             if parsed.path == "/api/models":
                 provider_id = parse_qs(parsed.query).get("provider", [""])[0]
                 provider = config.providers.get(provider_id)
@@ -250,6 +260,8 @@ def serve(config: Config) -> int:
                 body = self._body()
                 with state_lock, guard.edit():
                     self._post(body)
+            except TimeoutError:
+                self._json({"error": "Setup request timed out."}, HTTPStatus.REQUEST_TIMEOUT)
             except OSError:
                 self._json({"error": "Could not save settings. Check local storage permissions."}, HTTPStatus.INTERNAL_SERVER_ERROR)
             except (AdapterError, ValueError) as exc:

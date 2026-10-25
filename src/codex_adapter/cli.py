@@ -41,6 +41,9 @@ def _parser() -> argparse.ArgumentParser:
     validate.add_argument("action", choices=["validate"])
     check = commands.add_parser("doctor", help="Validate provider setup")
     _add_selection(check)
+    check.add_argument("--allow-live", action="store_true", help="Allow bounded provider route checks (may incur cost)")
+    check.add_argument("--check", action="append", choices=["text", "streaming", "tools", "streaming_tools", "tool_result", "history_replay"])
+    check.add_argument("--report", help="Write positive route evidence to a new JSON file")
     migrate = commands.add_parser("migrate", help="Plan a cross-provider migrated session")
     migrate.add_argument("--from", dest="source", required=True, help="Source session ID")
     migrate.add_argument("--scope", choices=["recent", "all", "summary"], default="recent")
@@ -76,6 +79,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         provider, model, reasoning = config.resolve(args.provider, args.model, args.reasoning)
         if args.command == "doctor":
+            if provider.execution_mode == "gateway" or args.check or args.report:
+                from .route_doctor import route_doctor
+
+                checks = route_doctor(config, provider, model, allow_live=args.allow_live, checks=args.check, report=args.report)
+                for item in checks:
+                    print(f"{item['case']}: {item['outcome']} ({item['requests']} requests, {item['duration_ms']} ms)")
+                return 0 if all(item["passed"] for item in checks) else 1
             results = doctor(config, provider, model)
             for name, status in results:
                 print(f"{name}: {status}")

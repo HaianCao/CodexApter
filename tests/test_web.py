@@ -111,6 +111,13 @@ class WebConfigTests(unittest.TestCase):
                 html = urlopen(url, timeout=3).read().decode("utf-8")
                 token = re.search(r"const SESSION_TOKEN = '([^']+)'", html).group(1)
                 url = url.split("?", 1)[0]
+                with self.assertRaises(HTTPError) as unauthorized:
+                    urlopen(url + "api/diagnostics?provider=demo", timeout=3)
+                self.assertEqual(unauthorized.exception.code, 403)
+                unauthorized.exception.close()
+                diagnostic_request = Request(url + "api/diagnostics?provider=demo", headers={"X-Codex-Apter-Token": token})
+                with urlopen(diagnostic_request, timeout=3) as response:
+                    self.assertEqual(json.load(response), {"records": [], "enabled": False})
                 for extra_fields in ({"upstream_reasoning": "openrouter_disabled", "capabilities_file": "checks.json", "require_verified_capabilities": True}, {}):
                     edit = Request(
                         url + "api/provider",
