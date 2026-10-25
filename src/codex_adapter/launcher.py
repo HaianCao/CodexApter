@@ -138,6 +138,11 @@ def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
     try:
         report = registry.assess(gateway.upstream_base_url, gateway.upstream_protocol, model, features)
         report.require(verified=gateway.require_verified_capabilities)
+        from protoverta.capabilities import route_policies
+
+        registry.assess_route(gateway.upstream_base_url, gateway.upstream_protocol, model, features,
+                              source_protocol="responses", streaming=True, client_profile=gateway.client_profile,
+                              policies=route_policies(gateway)).require(verified=gateway.require_verified_routes)
     except ValueError as exc:
         raise LaunchError(f"Model compatibility check failed: {exc}") from exc
 

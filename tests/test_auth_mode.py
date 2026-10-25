@@ -1,4 +1,3 @@
-import json
 from unittest.mock import patch
 
 import pytest
@@ -61,12 +60,13 @@ def test_client_search_policy_persists_and_reaches_gateway(tmp_path):
 
 @pytest.mark.parametrize("auth", ["bearer", "api_key"])
 def test_discovery_uses_selected_auth(tmp_path, auth):
-    import io
+    pytest.importorskip("protoverta.discovery")
+    from protoverta.discovery import ModelInfo
 
     provider = Provider("demo", "Demo", "https://example.test/v1", execution_mode="gateway", auth_mode=auth)
     provider.discovery.enabled = True
-    with patch("codex_adapter.catalog.resolve_token", return_value="fixture"), patch("codex_adapter.catalog._open", return_value=io.BytesIO(json.dumps({"data": [{"id": "m"}]}).encode())) as opened:
+    with patch("codex_adapter.catalog.resolve_token", return_value="fixture"), patch("protoverta.discovery.fetch_catalog", return_value=(ModelInfo("m", "m"),)) as opened:
         assert fetch_models(Config(), provider, cache=tmp_path / "cache.json") == ["m"]
-    headers = {key.lower(): value for key, value in opened.call_args.args[0].header_items()}
+    headers = {key.lower(): value for key, value in opened.call_args.args[1].items()}
     assert headers.get("authorization") == ("Bearer fixture" if auth == "bearer" else None)
     assert headers.get("x-api-key") == ("fixture" if auth == "api_key" else None)

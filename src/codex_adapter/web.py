@@ -236,7 +236,7 @@ def serve(config: Config) -> int:
                 if not provider:
                     self._json({"error": "Unknown provider"}, HTTPStatus.NOT_FOUND)
                     return
-                models, stale = cached_models(provider)
+                models, stale = cached_models(provider, config=config)
                 self._json({"models": models, "stale": stale})
                 return
             self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
