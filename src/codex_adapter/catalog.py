@@ -6,6 +6,7 @@ import math
 import os
 import time
 import uuid
+from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -13,6 +14,15 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from .config import Config, Provider, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
+
+
+def _decode_json(raw):
+    try:
+        value = json.loads(raw)
+        json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        raise ValueError("Invalid catalog JSON.") from None
+    return value
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -42,8 +52,8 @@ def _identity(provider: Provider, config=None) -> dict:
 def _read_cache(path: Path | None = None) -> dict:
     source = path or migrate_legacy_cache()
     try:
-        data = json.loads(source.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+        data = _decode_json(source.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, RecursionError):
         return {"providers": {}}
     if not isinstance(data, dict) or not isinstance(data.get("providers"), dict):
         return {"providers": {}}
@@ -116,11 +126,11 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
             raw = response.read(8_000_001)
             if len(raw) > 8_000_000:
                 raise DiscoveryError("Model discovery response is too large (limit: 8 MB).")
-            payload = json.loads(raw.decode("utf-8"))
+            payload = _decode_json(raw)
     except HTTPError as exc:
         exc.close()
         raise DiscoveryError(f"Model discovery failed for '{provider.id}': HTTP {exc.code}.") from None
-    except (URLError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (URLError, OSError, UnicodeError, ValueError, RecursionError, HTTPException) as exc:
         raise DiscoveryError(f"Model discovery failed for '{provider.id}': {type(exc).__name__}.") from None
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, list):

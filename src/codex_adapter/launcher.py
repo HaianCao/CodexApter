@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .command import command_prefix
 from .config import (
     Config,
     Provider,
@@ -38,6 +39,10 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     executable = shutil.which("codex")
     if not executable:
         raise LaunchError("Codex CLI was not found on PATH.")
+    try:
+        prefix = command_prefix(executable, "codex", "@openai/codex")
+    except ValueError as exc:
+        raise LaunchError(str(exc)) from None
     token = resolve_token(config, provider)
     env = os.environ.copy()
     if provider.auth_secret_ref:
@@ -79,7 +84,9 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     ]
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
         overrides.extend(['model_reasoning_summary="none"', 'features.multi_agent=false', 'web_search="disabled"'])
-    argv = [executable, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
+    argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
+    if any(not isinstance(arg, str) or "\0" in arg for arg in argv):
+        raise LaunchError("CLI arguments must be strings without NUL characters.")
     return argv, env
 
 
