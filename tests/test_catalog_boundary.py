@@ -62,4 +62,3 @@ def test_truncated_provider_response_has_typed_error_and_closes(tmp_path, monkey
         catalog.fetch_models(config, provider, cache=tmp_path / "cache.json")
     assert "synthetic-partial" not in str(caught.value)
     assert response.closed
-
