@@ -66,7 +66,8 @@ def test_non_ascii_query_and_header_are_unauthorized_not_handler_errors(tmp_path
             assert response.status == 200
 
 
-def test_endpoint_suffix_is_rejected_without_changing_provider_or_key(tmp_path, monkeypatch):
+@pytest.mark.parametrize("invalid_url", ["https://example.test/api/v1/responses/", "https://example.test/with space", "https://example.test:0/v1", "https://example.test/v1\n", "\0https://example.test/v1"])
+def test_invalid_url_is_rejected_without_changing_provider_or_key(tmp_path, monkeypatch, invalid_url):
     monkeypatch.setenv("FIXTURE_TOKEN", "synthetic-original")
     with listener(tmp_path, monkeypatch) as (_, url, token, _):
         origin = f"http://{url.netloc}"
@@ -76,12 +77,12 @@ def test_endpoint_suffix_is_rejected_without_changing_provider_or_key(tmp_path, 
             assert response.status == 200
         config_before = (tmp_path / "config.toml").read_bytes()
         key_before = (tmp_path / ".env").read_bytes()
-        body.update(base_url="https://example.test/api/v1/responses/", api_key="synthetic-replacement")
+        body.update(base_url=invalid_url, api_key="synthetic-replacement")
         with pytest.raises(HTTPError) as error:
             urlopen(Request(origin + "/api/provider", data=json.dumps(body).encode(), headers=headers), timeout=3)
         with error.value as response:
             assert response.status == 400
-            assert "endpoint suffix" in json.load(response)["error"]
+            assert json.load(response)["error"]
         assert (tmp_path / "config.toml").read_bytes() == config_before
         assert (tmp_path / ".env").read_bytes() == key_before
         with urlopen(Request(origin + "/api/config", headers=headers), timeout=3) as response:

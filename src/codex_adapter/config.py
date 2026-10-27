@@ -271,13 +271,17 @@ def _check_id(value: str, label: str) -> None:
 
 
 def validate_base_url(value: str) -> str:
+    if not isinstance(value, str) or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ConfigError("Provider base URL must be text without whitespace or control characters.")
     try:
         parsed = urlsplit(value)
-        _ = parsed.port  # Force validation of a malformed port number.
+        port = parsed.port  # Force validation of a malformed port number.
     except ValueError as exc:
         raise ConfigError("Provider base URL is invalid.") from exc
     if not parsed.hostname or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
         raise ConfigError("Provider base URL must be an HTTPS URL without credentials, query, or fragment.")
+    if port is not None and port < 1:
+        raise ConfigError("Provider base URL port must be between 1 and 65535.")
     if parsed.scheme.lower() != "https" and not (parsed.scheme.lower() == "http" and parsed.hostname.lower() in {"localhost", "127.0.0.1", "::1"}):
         raise ConfigError("Provider base URL must use HTTPS (HTTP is allowed only for localhost/loopback).")
     if parsed.path.rstrip("/").endswith(("/responses", "/messages", "/chat/completions")):
@@ -328,8 +332,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
     for name, item in providers_raw.items():
         _check_id(name, "Provider")
         item = _table(item, f"providers.{name}")
-        base_url = _string(item.get("base_url"), f"providers.{name}.base_url", True)
-        base_url = validate_base_url(base_url)
+        _string(item.get("base_url"), f"providers.{name}.base_url", True)
+        base_url = validate_base_url(item["base_url"])
         protocol = _string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True)
         mode = _string(item.get("execution_mode", "direct"), f"providers.{name}.execution_mode", required=True)
         if protocol not in _PROTOCOLS or mode not in _MODES:

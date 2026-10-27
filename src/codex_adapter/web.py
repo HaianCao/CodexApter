@@ -280,7 +280,7 @@ def serve(config: Config) -> int:
                     provider_id = str(body.get("id", "")).strip()
                     _validate_provider_id(provider_id)
                     display_name = str(body.get("display_name", "")).strip()
-                    base_url = validate_base_url(str(body.get("base_url", "")).strip())
+                    base_url = validate_base_url(body.get("base_url", ""))
                     current = config.providers.get(provider_id)
                     protocol = str(body.get("protocol", current.protocol if current else "responses"))
                     if protocol not in {"responses", "chat_completions", "anthropic_messages"}:
