@@ -147,7 +147,7 @@ function Invoke-AdapterUninstall {
 }
 
 try {
-    Invoke-AdapterUninstall -Name 'CodexApter' -InstallNames @('codex-ca', 'codex-ai') -DataNames @('codexapter', 'codex-ai') -EnvironmentNames @('CODEX_CA_CONFIG', 'CODEX_CA_CACHE', 'CODEX_CA_ENV_FILE') -PipxNames @('codexapter', 'codex-multi-provider') -DeleteData:$DeleteData -ResetEnvironment:$ResetEnvironment -NonInteractive:$NonInteractive -NoPathChanges:$NoPathChanges
+    Invoke-AdapterUninstall -Name 'CodexApter' -InstallNames @('codex-ca', 'codex-ai') -DataNames @('codexapter', 'codex-ai') -EnvironmentNames @('CODEX_CA_CONFIG', 'CODEX_CA_CACHE', 'CODEX_CA_ENV_FILE', 'CODEX_CA_MCP_CONFIG', 'CODEX_CA_MODEL_CATALOG') -PipxNames @('codexapter', 'codex-multi-provider') -DeleteData:$DeleteData -ResetEnvironment:$ResetEnvironment -NonInteractive:$NonInteractive -NoPathChanges:$NoPathChanges
 }
 catch {
     Write-Host ("Uninstall failed: " + $_.Exception.Message) -ForegroundColor Red

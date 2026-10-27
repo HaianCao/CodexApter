@@ -350,8 +350,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
             raise ConfigError(f"providers.{name}.model_discovery only permits a relative GET path.")
         display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
         gateway_max_output_tokens = _positive_integer(item.get("gateway_max_output_tokens", 4096), f"providers.{name}.gateway_max_output_tokens")
-        upstream_reasoning = item.get("upstream_reasoning", "provider_default")
-        if upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (mode != "gateway" and upstream_reasoning != "provider_default"):
+        upstream_reasoning = item.get("upstream_reasoning", "auto")
+        if upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (mode != "gateway" and upstream_reasoning not in ("auto", "provider_default")):
             raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
         system_models = validate_system_models(item.get("messages_system_models", []), protocol, mode)
         capabilities_file, require_verified = validate_capability_settings(item.get("capabilities_file", ""), item.get("require_verified_capabilities", False), mode)
@@ -423,7 +423,7 @@ def save(config: Config, path: Path | None = None) -> Path:
         search_policy = validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
         public_reasoning = validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
         capabilities_file, require_verified = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
-        if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
+        if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")):
             raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
         lines.extend(["", f"[providers.{name}]", f"display_name = {_quote(provider.display_name)}", f"base_url = {_quote(provider.base_url)}", f"protocol = {_quote(provider.protocol)}", f"execution_mode = {_quote(provider.execution_mode)}"])
         if provider.execution_mode == "gateway":

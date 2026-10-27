@@ -6,7 +6,7 @@ import pytest
 
 from codex_adapter.config import Config, Provider, load, save
 from codex_adapter.errors import ConfigError, LaunchError
-from codex_adapter.launcher import _gateway, preflight
+from codex_adapter.launcher import _gateway, _verify_capabilities, preflight
 from codex_adapter.web import public_config
 
 
@@ -57,3 +57,45 @@ def test_failed_preflight_does_not_open_listener_or_launch_cli():
     listener.assert_not_called()
     build.assert_not_called()
     assert registry.assess.call_args.args[2] == "model-a"
+
+
+@pytest.mark.parametrize("verified", [False, True])
+def test_optional_reasoning_permission_does_not_require_model_to_emit_it(verified):
+    capabilities = pytest.importorskip("protoverta.capabilities")
+    from protoverta.server import GatewayConfig
+
+    registry = capabilities.CapabilityRegistry((capabilities.CapabilityRecord(
+        "https://example.test/v1", "chat", "model-a",
+        {"text": True, "streaming": True, "reasoning_effort": True, "public_reasoning": False},
+        "2026-10-27", "synthetic non-public-reasoning model",
+    ),))
+    gateway = GatewayConfig("chat", "https://example.test/v1", "synthetic", "local",
+                            public_reasoning=True, capabilities=registry, require_verified_capabilities=verified)
+    _verify_capabilities(gateway, "model-a", "medium")
+    # Permission is not a capability demand. Actual reasoning replay still is.
+    with pytest.raises(ValueError, match="unsupported=public_reasoning"):
+        registry.preflight(gateway.upstream_base_url, "chat", {
+            "model": "model-a", "messages": [{"role": "assistant", "content": "answer", "reasoning_content": "actual reasoning"}],
+        }, require_verified=verified)
+
+
+def test_optional_reasoning_still_requires_matching_route_policy_evidence():
+    from dataclasses import replace
+
+    capabilities = pytest.importorskip("protoverta.capabilities")
+    from protoverta.server import GatewayConfig
+
+    features = {"text": True, "streaming": True, "reasoning_effort": True, "public_reasoning": False}
+    record = capabilities.CapabilityRecord("https://example.test/v1", "chat", "model-a", features, "2026-10-27", "synthetic")
+    registry = capabilities.CapabilityRegistry((record,))
+    gateway = GatewayConfig("chat", "https://example.test/v1", "synthetic", "local", public_reasoning=True,
+                            capabilities=registry, require_verified_capabilities=True, require_verified_routes=True)
+    with pytest.raises(LaunchError, match="unverified"):
+        _verify_capabilities(gateway, "model-a", "medium")
+    route = capabilities.RouteCapabilityRecord(gateway.upstream_base_url, "chat", "model-a", "responses", True,
+                                               gateway.client_profile, capabilities.route_policies(gateway), features,
+                                               "2026-10-27", "synthetic route", "synthetic fixture")
+    gateway = replace(gateway, capabilities=capabilities.CapabilityRegistry((record,), (route,)))
+    _verify_capabilities(gateway, "model-a", "medium")
+    with pytest.raises(LaunchError, match="unverified"):
+        _verify_capabilities(replace(gateway, public_reasoning=False), "model-a", "medium")

@@ -292,8 +292,8 @@ def serve(config: Config) -> int:
                     system_models = validate_system_models(body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode)
                     capabilities_file, require_verified = validate_capability_settings(body.get("capabilities_file", current.capabilities_file if current else ""), body.get("require_verified_capabilities", current.require_verified_capabilities if current else False), execution_mode)
                     public_reasoning = validate_public_reasoning(body.get("public_reasoning", current.public_reasoning if current else False), protocol, execution_mode)
-                    upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "provider_default"))
-                    if upstream_reasoning not in {"provider_default", "disabled", "openrouter_disabled"} or (execution_mode != "gateway" and upstream_reasoning != "provider_default"):
+                    upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "auto"))
+                    if upstream_reasoning not in {"auto", "provider_default", "disabled", "openrouter_disabled"} or (execution_mode != "gateway" and upstream_reasoning not in {"auto", "provider_default"}):
                         raise ConfigError("Choose a valid upstream reasoning policy; disabling requires gateway mode.")
                     if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens <= 0:
                         raise ConfigError("Gateway token limit must be a positive integer.")

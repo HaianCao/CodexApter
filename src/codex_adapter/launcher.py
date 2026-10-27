@@ -20,6 +20,8 @@ from .config import (
 from .credentials import resolve_token
 from .errors import LaunchError
 from .gateway_options import runtime_options, session_options, validate_gateway_limits
+from .mcp import codex_overrides, load_servers
+from .model_catalog import catalog_override
 
 
 def _bypass_loopback_proxy(env: dict[str, str]) -> None:
@@ -34,7 +36,7 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
     validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
     validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
-    if provider.upstream_reasoning not in ("provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning != "provider_default"):
+    if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")):
         raise LaunchError("An explicit upstream reasoning policy requires gateway mode.")
     executable = shutil.which("codex")
     if not executable:
@@ -82,6 +84,11 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         f'model_providers.{provider.id}.supports_websockets=false',
         f'model_reasoning_effort={json.dumps(reasoning)}',
     ]
+    overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model))
+    try:
+        overrides.extend(codex_overrides(load_servers(os.environ.get("CODEX_CA_MCP_CONFIG"))))
+    except ValueError as exc:
+        raise LaunchError(str(exc)) from None
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
         overrides.extend(['model_reasoning_summary="none"', 'features.multi_agent=false', 'web_search="disabled"'])
     argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
@@ -110,6 +117,12 @@ def _gateway(config: Config, provider: Provider):
         registry_options.update(validate_gateway_limits(provider.gateway_limits, provider.execution_mode))
         if validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode):
             registry_options["public_reasoning"] = True
+        reasoning_policy = provider.upstream_reasoning
+        if reasoning_policy == "auto":
+            from protoverta.automatic_reasoning import automatic_reasoning
+
+            reasoning_policy, public_text = automatic_reasoning("responses", upstream, provider.base_url)
+            registry_options["public_reasoning"] = public_text
         capabilities_file, required = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
         if capabilities_file:
             from protoverta.capabilities import CapabilityRegistry
@@ -123,7 +136,7 @@ def _gateway(config: Config, provider: Provider):
             "x-api-key" if validate_auth_mode(provider.auth_mode, provider.execution_mode) == "api_key" else "bearer",
             client_profile="codex" if upstream != Protocol.RESPONSES else "strict",
             default_max_output_tokens=provider.gateway_max_output_tokens,
-            upstream_reasoning=provider.upstream_reasoning,
+            upstream_reasoning=reasoning_policy,
             namespace_tools="flatten" if upstream != Protocol.RESPONSES else "reject",
             messages_system_models=tuple(provider.messages_system_models),
             **registry_options,
@@ -138,8 +151,10 @@ def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
     if registry is None:
         return
     features = {"text", "streaming"}
-    if getattr(gateway, "public_reasoning", False):
-        features.add("public_reasoning")
+    # public_reasoning permits preserving optional output; it does not request
+    # that the model emit reasoning. Actual reasoning history is checked by
+    # the gateway's per-request capability preflight. The route-policy
+    # fingerprint below still includes this decoder setting.
     if gateway.upstream_reasoning == "provider_default":
         features.add("reasoning_effort")
     try:

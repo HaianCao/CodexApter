@@ -62,13 +62,13 @@ When you choose **Run Codex**, the setup page closes and Codex takes over the te
 
 ### Optional protocol gateway
 
-In the provider editor, **Upstream reasoning** defaults to the provider/client
-settings. Choose **Disabled — OpenRouter** for OpenRouter models whose default
-reasoning cannot be translated, or **Disabled — standard API** for compatible
-upstreams. Disabling requires gateway mode and overrides effort; models requiring
-reasoning may reject it. Unsupported reasoning output is never silently hidden.
+Reasoning compatibility is automatic for new providers. The launcher preserves
+portable public reasoning on Chat/Responses routes and requests reasoning off
+where Messages cannot represent it. Manual overrides remain under **Advanced:
+reasoning settings**. Models requiring incompatible reasoning can still be
+unsupported; returned reasoning is never silently hidden.
 
-This checkout prepares gateway preview **0.2.0a1** with Protoverta **0.3.0a7**.
+This checkout prepares gateway preview **0.2.0a2** with Protoverta **0.3.0a8**.
 Until those snapshots are published, use the local installer with
 `-ProtovertaWheel PATH_TO_A7_WHEEL`; the public a6 wheel lacks the new runtime
 options. Once the matching preview/core are published, install with:
@@ -144,9 +144,8 @@ Provider settings and API keys are stored on your computer. API keys are kept in
 
 Gateway mode is experimental. Client interoperability is tested with scripted local upstreams; each real provider/model still needs its own compatibility check.
 
-For Chat providers returning unsigned `reasoning_content`, the provider editor
-offers **Advanced: public reasoning text** (`public_reasoning = true` in TOML).
-This opt-in keeps public reasoning separate from the answer and supports replay
+For Chat providers returning unsigned `reasoning_content`, automatic mode keeps
+public reasoning separate from the answer and supports replay
 as Responses `reasoning_text`. It does not convert summaries, encrypted state or
 Messages signatures. Image inputs support URL/base64 user messages, not
 provider-owned file IDs. Rich text/image tool results map Messages ↔ Responses;
@@ -157,6 +156,15 @@ Provider IDs must produce distinct API-key variable names (`a-b` and `a_b`
 both normalize to `A_B_TOKEN`). Setup rejects such collisions without changing
 saved keys. To share a key intentionally, point both providers at the same
 secret reference in TOML instead of defining duplicate environment mappings.
+
+## Session tools
+
+External stdio MCP servers can be selected for one launch with
+`CODEX_CA_MCP_CONFIG`: a JSON file with `mcpServers`, each containing an absolute
+executable `command`, optional `args`, and `env_vars` names. No global MCP
+registration is changed. Keys belong in the named environment variables.
+An optional `CODEX_CA_MODEL_CATALOG` selects an operator-supplied Codex catalog
+matching the installed CLI and the exact model ID; capabilities are not inferred.
 
 ## For contributors
 
