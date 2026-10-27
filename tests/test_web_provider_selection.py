@@ -21,7 +21,9 @@ const assert=require('node:assert/strict');
 const providers=[{id:'one',default_model:'one-fallback'},{id:'two',default_model:'two-model'},{id:'three'}];
 let state={config:{providers,defaults:{provider:'one',model:'one-saved',reasoning_effort:'high'}}};
 let selected=providers[0],input={value:'stale-model'},effort={},observed=[];
-function $(id){return id==='modelInput'?input:effort}
+const editor={hidden:false,classList:{add(value){assert.equal(value,'hidden');editor.hidden=true}}};
+const key={value:'synthetic-unsaved-key'},editorId={value:'one'};
+function $(id){return {modelInput:input,reasoning:effort,providerForm:editor,apiKey:key,providerId:editorId}[id]}
 function selectedProvider(){return selected}
 function showProvider(){}
 function fillProviderSelect(){selected=providers.find(p=>p.id===state.config.defaults.provider)||providers[0]}
@@ -31,7 +33,10 @@ async function api(){return state.config}
     checks = r"""
 (async()=>{
   await loadConfig();assert.equal(input.value,'one-saved');assert.equal(effort.value,'high');
+  assert(editor.hidden);assert.equal(key.value,'');assert.equal(editorId.value,'');
+  editor.hidden=false;key.value='synthetic-unsaved-key';editorId.value='one';
   input.value='manual-on-one';selected=providers[1];await providerChanged();assert.equal(input.value,'two-model');
+  assert(editor.hidden);assert.equal(key.value,'');assert.equal(editorId.value,'');
   selected=providers[2];await providerChanged();assert.equal(input.value,'');
   input.value='manual-exact-id';await loadModels();assert.equal(input.value,'manual-exact-id');
   selected=providers[0];await providerChanged();assert.equal(input.value,'one-saved');
