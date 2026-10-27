@@ -53,7 +53,7 @@ Windows supports native CLI executables and standard npm global or project insta
 
 In the setup page:
 
-1. Select **Add** and enter a provider ID, display name, and API base URL (for example, `https://api.example.com/v1`).
+1. Select **Add** and enter a provider ID, display name, and API base URL (for example, `https://api.example.com/v1`). Use the API prefix, without `/responses`, `/messages` or `/chat/completions`.
 2. Enter the provider's API key. CodexApter derives the internal secret and environment-variable names from the provider ID.
 3. Select **Refresh models** to query the provider's model catalog, or type a model ID directly.
 4. Choose a reasoning effort and select **Save as default** or **Run Codex**.

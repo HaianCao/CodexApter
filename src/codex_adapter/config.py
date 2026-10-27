@@ -280,6 +280,8 @@ def validate_base_url(value: str) -> str:
         raise ConfigError("Provider base URL must be an HTTPS URL without credentials, query, or fragment.")
     if parsed.scheme.lower() != "https" and not (parsed.scheme.lower() == "http" and parsed.hostname.lower() in {"localhost", "127.0.0.1", "::1"}):
         raise ConfigError("Provider base URL must use HTTPS (HTTP is allowed only for localhost/loopback).")
+    if parsed.path.rstrip("/").endswith(("/responses", "/messages", "/chat/completions")):
+        raise ConfigError("Enter the base URL, for example https://provider.example/v1, without the endpoint suffix.")
     return value.rstrip("/")
 
 
@@ -411,6 +413,7 @@ def save(config: Config, path: Path | None = None) -> Path:
     for name, secret in sorted(config.secrets.items()):
         lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
     for name, provider in sorted(config.providers.items()):
+        validate_base_url(provider.base_url)
         from .gateway_options import (
             limits_toml,
             runtime_toml,

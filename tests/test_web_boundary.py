@@ -66,6 +66,28 @@ def test_non_ascii_query_and_header_are_unauthorized_not_handler_errors(tmp_path
             assert response.status == 200
 
 
+def test_endpoint_suffix_is_rejected_without_changing_provider_or_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("FIXTURE_TOKEN", "synthetic-original")
+    with listener(tmp_path, monkeypatch) as (_, url, token, _):
+        origin = f"http://{url.netloc}"
+        headers = {"X-Codex-Apter-Token": token, "Content-Type": "application/json"}
+        body = {"id": "fixture", "display_name": "Fixture", "base_url": "https://example.test/api/v1", "api_key": "synthetic-stored"}
+        with urlopen(Request(origin + "/api/provider", data=json.dumps(body).encode(), headers=headers), timeout=3) as response:
+            assert response.status == 200
+        config_before = (tmp_path / "config.toml").read_bytes()
+        key_before = (tmp_path / ".env").read_bytes()
+        body.update(base_url="https://example.test/api/v1/responses/", api_key="synthetic-replacement")
+        with pytest.raises(HTTPError) as error:
+            urlopen(Request(origin + "/api/provider", data=json.dumps(body).encode(), headers=headers), timeout=3)
+        with error.value as response:
+            assert response.status == 400
+            assert "endpoint suffix" in json.load(response)["error"]
+        assert (tmp_path / "config.toml").read_bytes() == config_before
+        assert (tmp_path / ".env").read_bytes() == key_before
+        with urlopen(Request(origin + "/api/config", headers=headers), timeout=3) as response:
+            assert json.load(response)["providers"][0]["base_url"] == "https://example.test/api/v1"
+
+
 @pytest.mark.parametrize("value", ["é", "💡", "", None, b"fixture"])
 def test_token_matcher_rejects_malformed_values(value):
     assert token_matches(value, "fixture") is False

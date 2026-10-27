@@ -13,6 +13,7 @@ from .config import (
     Provider,
     config_path,
     validate_auth_mode,
+    validate_base_url,
     validate_capability_settings,
     validate_client_tool_search,
     validate_public_reasoning,
@@ -32,6 +33,7 @@ def _bypass_loopback_proxy(env: dict[str, str]) -> None:
 
 
 def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
+    configured_base_url = validate_base_url(provider.base_url)
     validate_auth_mode(provider.auth_mode, provider.execution_mode)
     validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
     validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
@@ -61,7 +63,7 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         base_url = gateway_url.rstrip("/") + "/v1"
         _bypass_loopback_proxy(env)
     elif provider.protocol == "responses" and provider.execution_mode in {"direct", "auto"}:
-        base_url = provider.base_url
+        base_url = configured_base_url
     else:
         raise LaunchError(f"Provider '{provider.id}' needs gateway mode for protocol '{provider.protocol}'.")
     if not provider.auth_secret_ref:
