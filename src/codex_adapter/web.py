@@ -10,7 +10,7 @@ from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .catalog import cached_models, fetch_models
+from .catalog import _identity, cached_models, fetch_models, store_catalog
 from .config import (
     Config,
     Discovery,
@@ -25,9 +25,10 @@ from .config import (
     validate_public_reasoning,
     validate_system_models,
 )
-from .credentials import env_file_path, remove_token, store_token
+from .credentials import env_file_path, remove_token, resolve_token, store_token
 from .errors import AdapterError, ConfigError
 from .gateway_options import validate_gateway_limits, validate_gateway_runtime
+from .http_deadline import Deadline
 from .launcher import launch, preflight
 from .settings_store import SettingsGuard, atomic_bytes
 from .web_http import SetupHTTPServer as ThreadingHTTPServer
@@ -142,6 +143,7 @@ def serve(config: Config) -> int:
     run_request: tuple[Provider, str, str] | None = None
     state_lock = threading.RLock()
     guard = SettingsGuard(config.path or config_path())
+    refreshes = set()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -260,6 +262,9 @@ def serve(config: Config) -> int:
             try:
                 self.connection.settimeout(15)
                 body = self._body()
+                if urlparse(self.path).path == "/api/models/refresh":
+                    self._refresh(body)
+                    return
                 with state_lock, guard.edit():
                     self._post(body)
             except TimeoutError:
@@ -268,6 +273,31 @@ def serve(config: Config) -> int:
                 self._json({"error": "Could not save settings. Check local storage permissions."}, HTTPStatus.INTERNAL_SERVER_ERROR)
             except (AdapterError, ValueError) as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
+        def _refresh(self, body):
+            with state_lock, guard.edit():
+                snapshot = copy.deepcopy(config)
+                provider = snapshot.providers.get(str(body.get("provider", "")))
+                if provider is None:
+                    raise AdapterError("Choose a configured provider.")
+                credential = resolve_token(snapshot, provider, required=False)
+                identity = _identity(provider, snapshot, token=credential)
+                budget = Deadline(15)
+                refreshes.add(budget)
+            entries = []
+            try:
+                with budget:
+                    models = fetch_models(snapshot, provider, cache_sink=entries.append, budget=budget, token=credential)
+                with state_lock, guard.edit():
+                    current = config.providers.get(provider.id)
+                    if run_request is not None or current != provider or _identity(current, config) != identity or (entries and entries[0]["identity"] != identity):
+                        raise AdapterError("Provider settings changed during refresh. Refresh models again.")
+                    if entries:
+                        store_catalog(provider.id, entries[0])
+                self._json({"models": models, "stale": False})
+            finally:
+                with state_lock:
+                    refreshes.discard(budget)
 
         def _post(self, body):
             nonlocal run_request
@@ -353,10 +383,6 @@ def serve(config: Config) -> int:
                     persist_change(config, updated)
                     self._json(public_config(config))
                     return
-                if path == "/api/models/refresh":
-                    provider = self._provider(body)
-                    self._json({"models": fetch_models(config, provider), "stale": False})
-                    return
                 if path == "/api/run":
                     provider = self._provider(body)
                     model = str(body.get("model", "")).strip()
@@ -420,6 +446,10 @@ def serve(config: Config) -> int:
     except KeyboardInterrupt:
         return 0
     finally:
+        with state_lock:
+            pending = tuple(refreshes)
+        for budget in pending:
+            budget.cancel()
         server.server_close()
     if run_request:
         provider, model, reasoning = run_request

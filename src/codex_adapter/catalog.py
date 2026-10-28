@@ -6,6 +6,7 @@ import math
 import os
 import time
 import uuid
+from contextlib import nullcontext
 from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -14,6 +15,10 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from .config import Config, Provider, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
+from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler
+from .settings_store import SettingsGuard
+
+_UNSET = object()
 
 
 def _decode_json(raw):
@@ -31,10 +36,10 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 def _open(request, *, timeout):
-    return build_opener(_NoRedirect()).open(request, timeout=timeout)
+    return build_opener(_NoRedirect(), DeadlineHTTPHandler(), DeadlineHTTPSHandler()).open(request, timeout=timeout)
 
 
-def _identity(provider: Provider, config=None) -> dict:
+def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
     from .gateway_options import catalog_policy_fingerprint
 
     result = {"base_url": provider.base_url, "protocol": provider.protocol,
@@ -43,7 +48,8 @@ def _identity(provider: Provider, config=None) -> dict:
             "catalog_policy_file": provider.gateway_runtime.get("catalog_policy_file", "")}
     result["catalog_policy_fingerprint"] = catalog_policy_fingerprint(config.path if config else None, provider)
     if config is not None:
-        token = resolve_token(config, provider, required=False)
+        if token is _UNSET:
+            token = resolve_token(config, provider, required=False)
         if token:
             result["credential_fingerprint"] = hashlib.sha256(token.encode()).hexdigest()
     return result
@@ -85,13 +91,26 @@ def cached_models(provider: Provider, path: Path | None = None, *, config=None) 
     return [item for item in models if isinstance(item, str)], stale
 
 
-def fetch_models(config: Config, provider: Provider, *, cache: Path | None = None, timeout: float = 15.0) -> list[str]:
+def store_catalog(provider_id, entry, cache=None):
+    target = cache or migrate_legacy_cache()
+    try:
+        with SettingsGuard(target).edit():
+            saved = _read_cache(target)
+            saved.setdefault("providers", {})[provider_id] = entry
+            _write_cache(saved, target)
+    except (OSError, ValueError):
+        pass  # A cache failure must not discard successful discovery.
+
+
+def fetch_models(config: Config, provider: Provider, *, cache: Path | None = None, timeout: float = 15.0, cache_sink=None, budget=None, token=_UNSET) -> list[str]:
     if not provider.discovery.enabled:
         raise DiscoveryError(f"Provider '{provider.id}' does not expose model discovery.")
     if provider.discovery.response_format != "openai_models_list":
         raise DiscoveryError(f"Unsupported model discovery format '{provider.discovery.response_format}'.")
     headers = {"Accept": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
-    token = resolve_token(config, provider, required=False)
+    if token is _UNSET:
+        token = resolve_token(config, provider, required=False)
+    identity = _identity(provider, config, token=token)
     if token:
         headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = token if provider.auth_mode == "api_key" else f"Bearer {token}"
     if provider.execution_mode == "gateway":
@@ -105,7 +124,13 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
                 if not path.is_absolute():
                     path = (config.path.parent if config.path else Path.cwd()) / path
                 policy = CatalogPolicy.load(path, provider.base_url)
-            info = [item.as_dict() for item in fetch_catalog(provider.base_url, headers, policy)]
+            options = {}
+            if budget is not None:
+                def upstream_open(request, *, timeout):
+                    request.adapter_deadline = budget
+                    return _open(request, timeout=min(timeout, budget.remaining()))
+                options["upstream_open"] = upstream_open
+            info = [item.as_dict() for item in fetch_catalog(provider.base_url, headers, policy, **options)]
         except ImportError:
             raise DiscoveryError("Gateway discovery requires the matching Protoverta preview.") from None
         except (ValueError, OSError, TypeError):
@@ -113,20 +138,22 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
         models = [item["id"] for item in info]
         if not models:
             raise DiscoveryError("Model discovery returned no usable model IDs.")
-        saved = _read_cache(cache)
-        saved.setdefault("providers", {})[provider.id] = {"identity": _identity(provider, config), "fetched_at": time.time(), "models": models, "model_info": info}
-        try:
-            _write_cache(saved, cache)
-        except OSError:
-            pass
+        entry = {"identity": identity, "fetched_at": time.time(), "models": models, "model_info": info}
+        if cache_sink is not None:
+            cache_sink(entry)
+        else:
+            store_catalog(provider.id, entry, cache)
         return models
     request = Request(provider.base_url + provider.discovery.path, headers=headers, method="GET")
     try:
-        with _open(request, timeout=timeout) as response:
-            raw = response.read(8_000_001)
-            if len(raw) > 8_000_000:
-                raise DiscoveryError("Model discovery response is too large (limit: 8 MB).")
-            payload = _decode_json(raw)
+        with (nullcontext(budget) if budget is not None else Deadline(timeout)) as active_budget:
+            request.adapter_deadline = active_budget
+            with _open(request, timeout=active_budget.remaining()) as response:
+                raw = response.read(8_000_001)
+                active_budget.remaining()
+                if len(raw) > 8_000_000:
+                    raise DiscoveryError("Model discovery response is too large (limit: 8 MB).")
+                payload = _decode_json(raw)
     except HTTPError as exc:
         exc.close()
         raise DiscoveryError(f"Model discovery failed for '{provider.id}': HTTP {exc.code}.") from None
@@ -138,10 +165,9 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
     models = sorted({item["id"].strip() for item in data if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()})
     if not models:
         raise DiscoveryError("Model discovery returned no usable model IDs.")
-    saved = _read_cache(cache)
-    saved.setdefault("providers", {})[provider.id] = {"identity": _identity(provider, config), "fetched_at": time.time(), "models": models}
-    try:
-        _write_cache(saved, cache)
-    except OSError:
-        pass  # A cache failure must not discard a successful discovery.
+    entry = {"identity": identity, "fetched_at": time.time(), "models": models}
+    if cache_sink is not None:
+        cache_sink(entry)
+    else:
+        store_catalog(provider.id, entry, cache)
     return models
