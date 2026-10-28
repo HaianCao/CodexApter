@@ -19,6 +19,7 @@ from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler
 from .settings_store import SettingsGuard
 
 _UNSET = object()
+_MESSAGES_API_VERSION = "2023-06-01"
 
 
 def _decode_json(raw):
@@ -47,6 +48,8 @@ def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
             "auth_secret_ref": provider.auth_secret_ref, "auth_mode": provider.auth_mode,
             "catalog_policy_file": provider.gateway_runtime.get("catalog_policy_file", "")}
     result["catalog_policy_fingerprint"] = catalog_policy_fingerprint(config.path if config else None, provider)
+    if provider.protocol == "anthropic_messages":
+        result["anthropic_version"] = _MESSAGES_API_VERSION
     if config is not None:
         if token is _UNSET:
             token = resolve_token(config, provider, required=False)
@@ -108,6 +111,9 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
     if provider.discovery.response_format != "openai_models_list":
         raise DiscoveryError(f"Unsupported model discovery format '{provider.discovery.response_format}'.")
     headers = {"Accept": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
+    if provider.protocol == "anthropic_messages":
+        # Match the Messages contract already used by the gateway and ClaudApter.
+        headers["anthropic-version"] = _MESSAGES_API_VERSION
     if token is _UNSET:
         token = resolve_token(config, provider, required=False)
     identity = _identity(provider, config, token=token)
