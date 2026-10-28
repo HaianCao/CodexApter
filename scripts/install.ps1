@@ -1,6 +1,7 @@
 param([switch]$SkipCodexInstall, [switch]$NonInteractive, [switch]$WithGateway, [string]$ProtovertaWheel, [switch]$NoPathChanges, [string]$SourceBranch = 'main')
 $ErrorActionPreference = 'Stop'
 $sourceTempRoot = $null
+$installLock = $null
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
@@ -140,26 +141,21 @@ try {
     $legacyScripts = Join-Path $legacyInstallRoot 'venv\Scripts'
     $legacyExe = Join-Path $legacyScripts 'codex-ai.exe'
     $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\codex-ca'
-    $venv = Join-Path $installRoot 'venv'
-    $venvPython = Join-Path $venv 'Scripts\python.exe'
-    $codexCaExe = Join-Path $venv 'Scripts\codex-ca.exe'
-    $isUpdate = (Test-Path -LiteralPath $codexCaExe) -or (Test-Path -LiteralPath $legacyExe)
+    . (Join-Path $repoRoot 'scripts\install-environment.ps1')
+    $installLock = Open-AdapterInstallLock $installRoot
+    $previousPython = Get-AdapterInstalledPython $installRoot
+    $isUpdate = [bool]$previousPython -or (Test-Path -LiteralPath $legacyExe)
     if ($isUpdate) {
         Write-Step 'Updating CodexApter'
     }
     else {
         Write-Step 'Installing CodexApter'
     }
-    if (-not (Test-Path -LiteralPath $venvPython)) {
-        New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
-        & $pythonExe -m venv $venv
-        if ($LASTEXITCODE -ne 0) { throw 'Could not create the CodexApter Python environment.' }
-    }
-    # Force reinstall so source changes are applied even if pyproject.toml still has the same version.
+    # Build a fresh generation even when the package version is unchanged.
     $installTarget = $repoRoot
     $gatewayPackages = @()
-    if (-not $WithGateway -and -not $ProtovertaWheel) {
-        $hasGateway = & $venvPython -c "import importlib.util; print(int(importlib.util.find_spec('protoverta') is not None))"
+    if ($previousPython -and -not $WithGateway -and -not $ProtovertaWheel) {
+        $hasGateway = & $previousPython -I -c "import importlib.util; print(int(importlib.util.find_spec('protoverta') is not None))"
         if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the existing gateway installation.' }
         if (([string]$hasGateway).Trim() -eq '1') { $WithGateway = $true }
     }
@@ -179,11 +175,12 @@ try {
             $gatewayPackages += 'https://github.com/HaianCao/Protoverta/releases/download/v0.3.0a8/protoverta-0.3.0a8-py3-none-any.whl'
         }
     }
-    & $venvPython -m pip install --disable-pip-version-check --force-reinstall $installTarget @gatewayPackages
-    if ($LASTEXITCODE -ne 0) { throw 'Installing CodexApter failed. Check the Python/pip output and rerun this setup file.' }
-    if (-not (Test-Path -LiteralPath $codexCaExe)) { throw 'The package installed but codex-ca.exe was not created.' }
-    $venvScripts = Join-Path $venv 'Scripts'
-    Add-UserPath $venvScripts
+    $candidate = New-AdapterEnvironment -Root $installRoot -Python $pythonExe -Target $installTarget -GatewayPackages $gatewayPackages -Module 'codex_adapter' -Command 'codex-ca'
+    Set-AdapterCurrentEnvironment $installRoot $candidate.Id
+    Add-UserPath $candidate.Bin
+    $codexCaExe = $candidate.Launcher
+    # Keep the old venv and generations for existing processes; only stop advertising them.
+    Remove-UserPath (Join-Path $installRoot 'venv\Scripts')
 
     # Trigger the application's one-time user-data migration while both old and
     # new wrapper installations are still present. Invalid config is preserved.
@@ -229,6 +226,7 @@ catch {
     exit 1
 }
 finally {
+    if ($installLock) { $installLock.Dispose() }
     if ($sourceTempRoot) {
         $tempParent = [IO.Path]::GetFullPath((Split-Path -Parent $sourceTempRoot)).TrimEnd('\')
         $expectedParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
