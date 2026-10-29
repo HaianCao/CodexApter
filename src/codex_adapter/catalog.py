@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import time
 import uuid
@@ -87,10 +86,9 @@ def cached_models(provider: Provider, path: Path | None = None, *, config=None) 
     models = entry.get("models", [])
     if not isinstance(models, list):
         models = []
-    fetched_at = entry.get("fetched_at", 0)
-    if isinstance(fetched_at, bool) or not isinstance(fetched_at, (int, float)) or not math.isfinite(fetched_at):
-        fetched_at = 0
-    stale = time.time() - fetched_at > provider.discovery.cache_ttl_seconds
+    fetched_at, now = entry.get("fetched_at"), time.time()
+    # Avoid float conversion of untrusted, potentially huge JSON integers.
+    stale = type(fetched_at) not in (int, float) or not 0 <= fetched_at <= now or now - fetched_at > provider.discovery.cache_ttl_seconds
     return [item for item in models if isinstance(item, str)], stale
 
 
