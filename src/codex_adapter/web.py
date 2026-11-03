@@ -10,6 +10,7 @@ from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .agent_models import validate_agent_models
 from .catalog import _identity, cached_models, fetch_models, store_catalog
 from .config import (
     Config,
@@ -56,6 +57,7 @@ def public_config(config: Config) -> dict:
                 "public_reasoning": provider.public_reasoning,
                 "gateway_limits": provider.gateway_limits,
                 "gateway_runtime": provider.gateway_runtime,
+                "agent_models": provider.agent_models,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -360,6 +362,7 @@ def serve(config: Config) -> int:
                         public_reasoning=public_reasoning,
                         gateway_limits=validate_gateway_limits(body.get("gateway_limits", current.gateway_limits if current else {}), execution_mode),
                         gateway_runtime=validate_gateway_runtime(body.get("gateway_runtime", current.gateway_runtime if current else {}), execution_mode),
+                        agent_models=validate_agent_models(body.get("agent_models", current.agent_models if current else {"policy": "selected"})),
                     )
                     api_key = str(body.get("api_key", ""))
                     if "discovery" in body:

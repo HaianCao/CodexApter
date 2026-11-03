@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .agent_models import agent_overrides
 from .command import command_prefix
 from .config import (
     Config,
@@ -94,6 +95,7 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         raise LaunchError(str(exc)) from None
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
         overrides.extend(cross_protocol_overrides(prefix))
+    overrides.extend(agent_overrides(prefix, provider.agent_models, model, reasoning))
     argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
     if any(not isinstance(arg, str) or "\0" in arg for arg in argv):
         raise LaunchError("CLI arguments must be strings without NUL characters.")

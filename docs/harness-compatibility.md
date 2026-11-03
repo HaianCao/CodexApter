@@ -15,5 +15,25 @@ Chat-upstream source-launcher smoke on 2026-11-03. It does not certify subagent
 execution, all model features or real providers. Explicit user CLI overrides
 remain user-controlled; the wrapper policy is not an enforcement boundary.
 
-Model-role configuration and subagent acceptance are separate work. The policy
-does not alter persistent Codex configuration or migrate session state.
+## Agent model policy
+
+New providers created in setup use `agent_models = { policy = "selected" }`.
+Existing configs without the field and programmatic Providers keep `inherit`.
+The Advanced editor shows the saved policy before Run and offers:
+
+- `inherit`: preserve the harness's existing agent model/effort settings.
+- `selected`: default agent model to the model chosen at launch; agent effort
+  defaults to launch effort, or explicit low/medium/high.
+- `custom`: supply an exact `default` model ID and explicit low/medium/high
+  `effort`. This avoids inheriting an unknown effort from a different model.
+
+Non-inherited policies currently require observed Codex 0.166.0. Unknown versions
+fail this explicit override during preflight, with an option to choose inherit.
+Native routes therefore query the version too when an override is requested.
+Custom agent files and explicit spawn settings retain CLI precedence over these
+defaults; the wrapper does not promise to force every agent. User-supplied CLI
+overrides remain available. Protocol-converted routes still disable agent tools.
+
+No persistent agent files or config are edited. Capability evidence for another
+model and actual subagent execution are separate acceptance gates. The policy
+uses the launch selection; it does not dynamically follow a later `/model` switch.

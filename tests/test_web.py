@@ -118,7 +118,8 @@ class WebConfigTests(unittest.TestCase):
                 diagnostic_request = Request(url + "api/diagnostics?provider=demo", headers={"X-Codex-Apter-Token": token})
                 with urlopen(diagnostic_request, timeout=3) as response:
                     self.assertEqual(json.load(response), {"records": [], "enabled": False})
-                for extra_fields in ({"upstream_reasoning": "openrouter_disabled", "capabilities_file": "checks.json", "require_verified_capabilities": True}, {}):
+                agent_policy = {"policy": "custom", "default": "fixture-worker", "effort": "low"}
+                for extra_fields in ({"agent_models": agent_policy, "upstream_reasoning": "openrouter_disabled", "capabilities_file": "checks.json", "require_verified_capabilities": True}, {}):
                     edit = Request(
                         url + "api/provider",
                         data=json.dumps({"id": "demo", "display_name": "Demo renamed", "base_url": "https://example.test/v1", "execution_mode": "gateway", **extra_fields}).encode(),
@@ -129,6 +130,7 @@ class WebConfigTests(unittest.TestCase):
                     self.assertEqual(load(config.path).providers["demo"].upstream_reasoning, "openrouter_disabled")
                     self.assertEqual(load(config.path).providers["demo"].capabilities_file, "checks.json")
                     self.assertTrue(load(config.path).providers["demo"].require_verified_capabilities)
+                    self.assertEqual(load(config.path).providers["demo"].agent_models, agent_policy)
                 for extra_fields in ({"messages_system_models": ["verified-model"]}, {}):
                     edit = Request(
                         url + "api/provider",

@@ -141,6 +141,7 @@ class Provider:
     auth_mode: str = "bearer"
     client_tool_search: str = "reject"
     gateway_runtime: dict = field(default_factory=dict)
+    agent_models: dict = field(default_factory=dict)
 
 
 def validate_client_tool_search(value: Any, protocol: str, mode: str) -> str:
@@ -371,6 +372,9 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         from .gateway_options import validate_gateway_runtime
 
         providers[name].gateway_runtime = validate_gateway_runtime(item.get("gateway_runtime", {}), mode)
+        from .agent_models import validate_agent_models
+
+        providers[name].agent_models = validate_agent_models(item.get("agent_models", {}))
     models: dict[str, ModelAlias] = {}
     for name, item in models_raw.items():
         _check_id(name, "Model alias")
@@ -445,6 +449,11 @@ def save(config: Config, path: Path | None = None) -> Path:
             lines.append("gateway_limits = " + limits_toml(limits))
         if runtime:
             lines.append("gateway_runtime = " + runtime_toml(runtime))
+        from .agent_models import agent_models_toml, validate_agent_models
+
+        agents = validate_agent_models(provider.agent_models)
+        if agents:
+            lines.append("agent_models = " + agent_models_toml(agents))
         if capabilities_file:
             lines.extend([f"capabilities_file = {_quote(capabilities_file)}", f"require_verified_capabilities = {str(require_verified).lower()}"])
         system_models = validate_system_models(provider.messages_system_models, provider.protocol, provider.execution_mode)
