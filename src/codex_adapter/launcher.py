@@ -21,6 +21,7 @@ from .config import (
 from .credentials import resolve_token
 from .errors import LaunchError
 from .gateway_options import runtime_options, session_options, validate_gateway_limits
+from .harness import cross_protocol_overrides
 from .mcp import codex_overrides, load_servers
 from .model_catalog import catalog_override
 
@@ -92,7 +93,7 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     except ValueError as exc:
         raise LaunchError(str(exc)) from None
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
-        overrides.extend(['model_reasoning_summary="none"', 'features.multi_agent=false', 'web_search="disabled"'])
+        overrides.extend(cross_protocol_overrides(prefix))
     argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
     if any(not isinstance(arg, str) or "\0" in arg for arg in argv):
         raise LaunchError("CLI arguments must be strings without NUL characters.")
