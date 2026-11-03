@@ -123,7 +123,7 @@ In PowerShell, run the uninstaller from GitHub:
 
 It removes the launcher and its wrapper PATH entries, not the official Codex CLI. Separate prompts let you reset adapter environment overrides and delete default provider settings, API keys and cache (type `DELETE`). Everything is kept unless you confirm its removal.
 
-Environment reset clears only `CODEX_CA_CONFIG`, `CODEX_CA_CACHE` and `CODEX_CA_ENV_FILE` at user/process scope. It does not delete custom-path files, provider key variables, or shared `ANTHROPIC_*`/`OPENAI_*` variables. Machine-wide settings are not changed. Open a new terminal afterward. To explicitly request reset without prompts, append `-ResetEnvironment -NonInteractive`; data deletion still requires interactive confirmation.
+Environment reset clears `CODEX_CA_CONFIG`, `CODEX_CA_CACHE`, `CODEX_CA_ENV_FILE`, `CODEX_CA_MCP_CONFIG`, `CODEX_CA_MODEL_CATALOG` and `CODEX_CA_ENABLE_SUBAGENTS` at user/process scope. It does not delete custom-path files, provider key variables, or shared `ANTHROPIC_*`/`OPENAI_*` variables. Machine-wide settings are not changed. Open a new terminal afterward. To explicitly request reset without prompts, append `-ResetEnvironment -NonInteractive`; data deletion still requires interactive confirmation.
 
 ## Advanced gateway settings
 
@@ -165,6 +165,19 @@ executable `command`, optional `args`, and `env_vars` names. No global MCP
 registration is changed. Keys belong in the named environment variables.
 An optional `CODEX_CA_MODEL_CATALOG` selects an operator-supplied Codex catalog
 matching the installed CLI and the exact model ID; capabilities are not inferred.
+
+The integration preview can opt into one foreground subagent on translated
+routes with `$env:CODEX_CA_ENABLE_SUBAGENTS = '1'` for the current shell.
+This subset requires Codex CLI **0.166.0**, provider `agent_models = { policy =
+"selected" }`, and an exact entry in `CODEX_CA_MODEL_CATALOG` with
+`supports_search_tool = false` and no code-only tool mode. Older configurations
+remain disabled. Clear the opt-in with `Remove-Item Env:CODEX_CA_ENABLE_SUBAGENTS`.
+This validates harness transport with local fixtures, not every provider/model.
+Concurrent, nested, detached and different-model agents are outside this subset.
+The opt-in caps open child threads at one. Custom agent files and explicit
+spawn model overrides retain harness precedence and are not certified by this
+same-model check; no model override is silently rewritten.
+Native Responses continues to use the harness's own agent settings.
 
 ## For contributors
 

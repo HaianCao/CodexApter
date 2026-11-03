@@ -8,9 +8,7 @@ from pathlib import Path
 from .errors import LaunchError
 
 
-def catalog_override(value: str | None, model: str) -> list[str]:
-    if not value:
-        return []
+def load_catalog(value: str, model: str) -> tuple[Path, dict]:
     try:
         path = Path(value).expanduser().resolve()
         with path.open("rb") as stream:
@@ -28,4 +26,11 @@ def catalog_override(value: str | None, model: str) -> list[str]:
         raise LaunchError("CODEX_CA_MODEL_CATALOG must name a readable Codex catalog with unique model slugs (maximum 2 MiB).") from None
     if model not in slugs:
         raise LaunchError("The selected model has no exact entry in CODEX_CA_MODEL_CATALOG; refusing an implicit fallback tool profile.")
+    return path, models[slugs.index(model)]
+
+
+def catalog_override(value: str | None, model: str) -> list[str]:
+    if not value:
+        return []
+    path, _ = load_catalog(value, model)
     return [f"model_catalog_json={json.dumps(str(path))}"]

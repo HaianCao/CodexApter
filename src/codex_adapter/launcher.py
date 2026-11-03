@@ -25,6 +25,7 @@ from .gateway_options import runtime_options, session_options, validate_gateway_
 from .harness import cross_protocol_overrides
 from .mcp import codex_overrides, load_servers
 from .model_catalog import catalog_override
+from .subagents import subagent_overrides
 
 
 def _bypass_loopback_proxy(env: dict[str, str]) -> None:
@@ -95,6 +96,8 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         raise LaunchError(str(exc)) from None
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
         overrides.extend(cross_protocol_overrides(prefix))
+        overrides.extend(subagent_overrides(prefix, os.environ.get("CODEX_CA_ENABLE_SUBAGENTS"),
+                                           os.environ.get("CODEX_CA_MODEL_CATALOG"), model, provider.agent_models))
     overrides.extend(agent_overrides(prefix, provider.agent_models, model, reasoning))
     argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
     if any(not isinstance(arg, str) or "\0" in arg for arg in argv):
