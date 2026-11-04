@@ -105,7 +105,7 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     return argv, env
 
 
-def _gateway(config: Config, provider: Provider):
+def _gateway(config: Config, provider: Provider, model: str | None = None):
     try:
         from protoverta.core import Protocol
         from protoverta.server import GatewayConfig, gateway_session
@@ -119,6 +119,8 @@ def _gateway(config: Config, provider: Provider):
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
         registry_options = {}
+        if provider.agent_models.get("policy") == "custom" and provider.agent_models.get("default") != model:
+            registry_options["codex_model_safe_resume"] = True
         registry_options.update(runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path()))
         if validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode) == "function":
             registry_options["client_tool_search"] = "function"
@@ -181,7 +183,7 @@ def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
 def preflight(config: Config, provider: Provider, model: str, reasoning: str) -> None:
     """Validate launch prerequisites without opening a listener or CLI process."""
     if provider.execution_mode == "gateway":
-        gateway, _ = _gateway(config, provider)
+        gateway, _ = _gateway(config, provider, model)
         _verify_capabilities(gateway, model, reasoning)
         build_invocation(config, provider, model, reasoning, [], gateway_url="http://127.0.0.1:0", gateway_token="preflight")
     else:
@@ -191,7 +193,7 @@ def preflight(config: Config, provider: Provider, model: str, reasoning: str) ->
 def launch(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str]) -> int:
     try:
         if provider.execution_mode == "gateway":
-            gateway, gateway_session = _gateway(config, provider)
+            gateway, gateway_session = _gateway(config, provider, model)
             _verify_capabilities(gateway, model, reasoning)
             with session_options(config.path or config_path(), provider) as observer_options, gateway_session(gateway, **observer_options) as origin:
                 argv, env = build_invocation(config, provider, model, reasoning, extra, gateway_url=origin, gateway_token=gateway.inbound_token)

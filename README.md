@@ -168,15 +168,23 @@ matching the installed CLI and the exact model ID; capabilities are not inferred
 
 The integration preview can opt into one foreground subagent on translated
 routes with `$env:CODEX_CA_ENABLE_SUBAGENTS = '1'` for the current shell.
-This subset requires Codex CLI **0.166.0**, provider `agent_models = { policy =
-"selected" }`, and an exact entry in `CODEX_CA_MODEL_CATALOG` with
-`supports_search_tool = false` and no code-only tool mode. Older configurations
+This subset requires Codex CLI **0.166.0** and provider `agent_models` policy
+`selected` (same model) or `custom` (explicit child model and low/medium/high
+effort). Every parent/child model needs its own exact entry in
+`CODEX_CA_MODEL_CATALOG` with `supports_search_tool = false` and no code-only
+tool mode. A custom child's effort must appear in its own
+`supported_reasoning_levels`. Older configurations
 remain disabled. Clear the opt-in with `Remove-Item Env:CODEX_CA_ENABLE_SUBAGENTS`.
 This validates harness transport with local fixtures, not every provider/model.
-Concurrent, nested, detached and different-model agents are outside this subset.
+Different-model child defaults and continuation of the same live child are
+tested with local fixtures. Gateway mode rejects `resume_agent` for different
+child models because Codex 0.166.0 can reopen the child with the parent model;
+use `send_input` on a retained child or start a new child. This guard requires
+gateway mode; direct native Responses follows Codex's own resume behavior.
+Nested, detached and persisted child resume remain outside this subset.
 The opt-in caps open child threads at one. Custom agent files and explicit
-spawn model overrides retain harness precedence and are not certified by this
-same-model check; no model override is silently rewritten.
+spawn model overrides retain harness precedence and are outside the tested
+configured-default subset; no model override is silently rewritten.
 Native Responses continues to use the harness's own agent settings.
 
 ## For contributors
