@@ -89,7 +89,14 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         f'model_providers.{provider.id}.supports_websockets=false',
         f'model_reasoning_effort={json.dumps(reasoning)}',
     ]
-    overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model))
+    overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model, prefix))
+    if provider.execution_mode == "gateway":
+        from .harness import detect_version
+
+        if detect_version(prefix) == (0, 166, 0):
+            # Use the reviewed local catalog. An inherited remote catalog URL
+            # must not receive this session's temporary local credential.
+            overrides.append("features.api_key_model_discovery=false")
     try:
         overrides.extend(codex_overrides(load_servers(os.environ.get("CODEX_CA_MCP_CONFIG"))))
     except ValueError as exc:
@@ -119,6 +126,16 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
         registry_options = {}
+        if model is not None:
+            from protoverta.model_snapshot import ModelSnapshot, SnapshotModel
+
+            from .agent_models import validate_agent_models
+            from .catalog import cached_model_names
+
+            policy = validate_agent_models(provider.agent_models)
+            identifiers = (model,) + ((policy["default"],) if policy.get("policy") == "custom" else ())
+            names = cached_model_names(config, provider, identifiers, token=token)
+            registry_options["model_snapshot"] = ModelSnapshot(provider.base_url, upstream, tuple(SnapshotModel(mid, names.get(mid, mid)) for mid in dict.fromkeys(identifiers)))
         if provider.agent_models.get("policy") == "custom" and provider.agent_models.get("default") != model:
             registry_options["codex_model_safe_resume"] = True
         registry_options.update(runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path()))

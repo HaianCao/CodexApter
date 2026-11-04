@@ -253,7 +253,20 @@ def serve(config: Config) -> int:
                     self._json({"error": "Unknown provider"}, HTTPStatus.NOT_FOUND)
                     return
                 models, stale = cached_models(provider, config=config)
-                self._json({"models": models, "stale": stale})
+                from .catalog import cached_model_names
+
+                self._json({"models": models, "stale": stale, "model_names": cached_model_names(config, provider, models)})
+                return
+            if parsed.path == "/api/model-status":
+                from .model_selection import model_status
+
+                query = parse_qs(parsed.query)
+                provider = config.providers.get(query.get("provider", [""])[0])
+                model = query.get("model", [""])[0]
+                if provider is None or len(model) > 512:
+                    self._json({"error": "Choose a configured provider and model."}, HTTPStatus.BAD_REQUEST)
+                    return
+                self._json(model_status(config, provider, model))
                 return
             self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
@@ -296,7 +309,9 @@ def serve(config: Config) -> int:
                         raise AdapterError("Provider settings changed during refresh. Refresh models again.")
                     if entries:
                         store_catalog(provider.id, entries[0])
-                self._json({"models": models, "stale": False})
+                from .catalog import cached_model_names
+
+                self._json({"models": models, "stale": False, "model_names": cached_model_names(config, current, models)})
             finally:
                 with state_lock:
                     refreshes.discard(budget)
@@ -394,12 +409,8 @@ def serve(config: Config) -> int:
                         raise ConfigError("Choose a model or enter a model ID.")
                     if reasoning not in {"low", "medium", "high"}:
                         raise ConfigError("Reasoning effort must be low, medium, or high.")
-                    # Show executable, credential, or gateway failures before
-                    # persisting defaults and closing the setup page.
+                    # Run is session-only; only /api/default persists defaults.
                     preflight(config, provider, model, reasoning)
-                    updated = copy.deepcopy(config)
-                    updated.defaults.provider, updated.defaults.model, updated.defaults.reasoning_effort = provider.id, model, reasoning
-                    persist_change(config, updated)
                     run_request = (provider, model, reasoning)
                     self._json({"started": True})
                     threading.Thread(target=server.shutdown, daemon=True).start()

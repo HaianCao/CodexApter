@@ -60,6 +60,8 @@ In the setup page:
 
 When you choose **Run Codex**, the setup page closes and Codex takes over the terminal where you launched `codex-ca setup`. Direct mode supplies the provider key; gateway mode supplies a temporary local token and keeps the upstream key in the launcher.
 
+**Run Codex** uses the current selection for this session. Choose **Save as default** explicitly to change future launches. Model lists are discovery data; the setup page reports local route evidence separately, and manual model IDs remain available if discovery fails.
+
 ### Optional protocol gateway
 
 Reasoning compatibility is automatic for new providers. The launcher preserves
@@ -164,7 +166,8 @@ External stdio MCP servers can be selected for one launch with
 executable `command`, optional `args`, and `env_vars` names. No global MCP
 registration is changed. Keys belong in the named environment variables.
 An optional `CODEX_CA_MODEL_CATALOG` selects an operator-supplied Codex catalog
-matching the installed CLI and the exact model ID; capabilities are not inferred.
+matching Codex CLI **0.166.0** and the exact model ID. Required structure and
+version are checked; capabilities are not inferred.
 
 The integration preview can opt into one foreground subagent on translated
 routes with `$env:CODEX_CA_ENABLE_SUBAGENTS = '1'` for the current shell.

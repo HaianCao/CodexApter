@@ -13,6 +13,11 @@ from codex_adapter.launcher import build_invocation, launch
 
 
 class GatewayLaunchTests(unittest.TestCase):
+    def test_pinned_gateway_never_enables_inherited_remote_catalog_discovery(self):
+        with patch("codex_adapter.harness.detect_version", return_value=(0, 166, 0)), patch("codex_adapter.launcher.shutil.which", return_value="codex.exe"), patch("codex_adapter.launcher.resolve_token", return_value="synthetic"):
+            argv, _ = build_invocation(self.config, self.provider, "model-id", "medium", [], gateway_url="http://127.0.0.1:1", gateway_token="local")
+        self.assertIn("features.api_key_model_discovery=false", argv)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -82,6 +87,7 @@ class GatewayLaunchTests(unittest.TestCase):
             def __init__(self, upstream, base_url, key, inbound_token, auth_style, **policy):
                 self.inbound_token = inbound_token
                 events.append((upstream, base_url, key, auth_style))
+                assert policy.pop("model_snapshot") == (base_url, upstream, (("model-id", "model-id"),))
                 assert policy == {"client_profile": "codex", "default_max_output_tokens": 4096, "upstream_reasoning": "provider_default", "namespace_tools": "flatten", "messages_system_models": ()}
 
         @contextmanager
@@ -99,7 +105,10 @@ class GatewayLaunchTests(unittest.TestCase):
         server = types.ModuleType("protoverta.server")
         server.GatewayConfig = GatewayConfig
         server.gateway_session = gateway_session
-        with patch.dict(sys.modules, {"protoverta": package, "protoverta.core": core, "protoverta.server": server}), patch(
+        snapshot = types.ModuleType("protoverta.model_snapshot")
+        snapshot.ModelSnapshot = lambda base, protocol, entries: (base, protocol, entries)
+        snapshot.SnapshotModel = lambda mid, name: (mid, name)
+        with patch.dict(sys.modules, {"protoverta": package, "protoverta.core": core, "protoverta.server": server, "protoverta.model_snapshot": snapshot}), patch(
             "codex_adapter.launcher.resolve_token", return_value="upstream-secret"
         ), patch("codex_adapter.launcher.shutil.which", return_value="codex.exe"), patch(
             "codex_adapter.launcher.subprocess.run", return_value=types.SimpleNamespace(returncode=7)

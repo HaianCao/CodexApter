@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from .config import Config, Provider, migrate_legacy_cache
+from .config import Config, Provider, cache_path, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
 from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler
@@ -19,6 +19,31 @@ from .settings_store import SettingsGuard
 
 _UNSET = object()
 _MESSAGES_API_VERSION = "2023-06-01"
+
+
+def cached_model_names(config, provider, identifiers, *, token=_UNSET):
+    """Enrich explicit session IDs only from a fresh, identity-matched cache."""
+    try:
+        with cache_path().open("rb") as source:
+            raw = source.read(8 * 1024 * 1024 + 1)
+        if len(raw) > 8 * 1024 * 1024:
+            return {}
+        entry = _decode_json(raw).get("providers", {}).get(provider.id, {})
+        if entry.get("identity") != _identity(provider, config, token=token):
+            return {}
+        saved, now = entry.get("fetched_at"), time.time()
+        if type(saved) not in (int, float) or not 0 <= saved <= now or now - saved > provider.discovery.cache_ttl_seconds:
+            return {}
+        wanted = set(identifiers)
+        info = entry.get("model_info", [])
+        if not isinstance(info, list) or len(info) > 10000:
+            return {}
+        return {item["id"]: item["display_name"] for item in info if isinstance(item, dict)
+                and isinstance(item.get("id"), str) and item["id"] in wanted
+                and isinstance(item.get("display_name"), str) and 1 <= len(item["display_name"]) <= 512
+                and not any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in item["display_name"])}
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError):
+        return {}
 
 
 def _decode_json(raw):

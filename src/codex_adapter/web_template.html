@@ -229,7 +229,18 @@
     function selectedProvider(){return state.config.providers.find(p=>p.id===$('providerSelect').value)||null;}
     function fillProviderSelect(){const select=$('providerSelect');select.replaceChildren();for(const item of state.config.providers){const option=document.createElement('option');option.value=item.id;option.textContent=item.display_name||item.id;select.append(option);}const preferred=state.config.defaults.provider;if(state.config.providers.some(p=>p.id===preferred))select.value=preferred;else if(state.config.providers.length)select.selectedIndex=0;}
     function showProvider(){$('addBtn').disabled=!!state.savingProvider;const p=selectedProvider();$('agentPolicyHint').textContent=p?((p.execution_mode==='gateway'&&p.protocol!=='responses'?'Subagents remain disabled on this converted route. ':'')+agentSummary(p.agent_models)):'';const meta=$('providerMeta');meta.replaceChildren();$('providerSelect').disabled=state.config.providers.length===0||!!state.savingProvider;for(const id of ['editBtn','deleteProvider','modelInput','reasoning','saveDefault','runBtn'])$(id).disabled=!p||!!state.savingProvider;const reasoningOff=!!p&&p.execution_mode==='gateway'&&(['disabled','openrouter_disabled'].includes(p.upstream_reasoning)||(p.upstream_reasoning==='auto'&&p.protocol==='anthropic_messages'));$('reasoning').disabled=!p||!!state.savingProvider||reasoningOff;$('effortHint').textContent=reasoningOff?'Reasoning is off for compatibility; effort is not applied.':(p?'Requested effort; model support varies.':'');if(!p){$('refreshBtn').disabled=true;return;}const protocolLabel={responses:'Responses',chat_completions:'Chat Completions → Responses',anthropic_messages:'Messages → Responses'}[p.protocol]||p.protocol;for(const value of [p.id,p.base_url,protocolLabel]){const badge=document.createElement('span');badge.className='badge';badge.textContent=value;meta.append(badge);}$('refreshBtn').disabled=!p.discovery.enabled||!!state.savingProvider;}
-    function renderModels(){const box=$('modelList');box.replaceChildren();const p=selectedProvider();if(!p){$('catalogHint').textContent='';return;}const query=$('modelInput').value.trim().toLowerCase();const matches=state.models.filter(model=>model.toLowerCase().includes(query));for(const model of matches){const row=document.createElement('div');row.className='model-option';row.setAttribute('role','option');row.tabIndex=0;row.textContent=model;const choose=()=>{$('modelInput').value=model;renderModels();};row.addEventListener('click',choose);row.addEventListener('keydown',event=>{if(event.key==='Enter'){choose();$('modelInput').focus();}});box.append(row);}if(!matches.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=query?'No catalog match. Pressing Run will use the typed model ID.':'No model catalog loaded. Enter a model ID manually.';box.append(empty);}$('catalogHint').textContent=state.stale?'Showing a cached catalog that may be out of date.':(p.discovery.enabled?`${matches.length} matching model${matches.length===1?'':'s'}.`:'This provider has no model discovery; manual model IDs are supported.');}
+    const routeHint=document.createElement('p');routeHint.id='modelStatus';routeHint.className='hint';routeHint.setAttribute('role','status');$('catalogHint').after(routeHint);
+    let routeGeneration=0,routeTimer;
+    function updateModelStatus(){const ticket=++routeGeneration;clearTimeout(routeTimer);const p=selectedProvider(),model=$('modelInput').value.trim();routeHint.textContent=p?'Unverified route. Model discovery is not capability certification.':'';if(!p||!model)return;routeTimer=setTimeout(async()=>{try{const result=await api('/api/model-status?provider='+encodeURIComponent(p.id)+'&model='+encodeURIComponent(model));if(ticket===routeGeneration)routeHint.textContent=result.message;}catch{}},180);}
+    function renderModels(){
+      updateModelStatus();const box=$('modelList');box.replaceChildren();const p=selectedProvider();if(!p){$('catalogHint').textContent='';return;}
+      const query=$('modelInput').value.trim().toLowerCase(),names=state.modelNames||{};
+      const label=model=>Object.prototype.hasOwnProperty.call(names,model)&&typeof names[model]==='string'?names[model]:model;
+      const matches=state.models.filter(model=>model.toLowerCase().includes(query)||label(model).toLowerCase().includes(query));
+      for(const model of matches){const name=label(model),row=document.createElement('div');row.className='model-option';row.setAttribute('role','option');row.tabIndex=0;row.textContent=name;if(name!==model){const id=document.createElement('small');id.style.display='block';id.textContent=model;row.append(id);}const choose=()=>{$('modelInput').value=model;renderModels();};row.addEventListener('click',choose);row.addEventListener('keydown',event=>{if(event.key==='Enter'){choose();$('modelInput').focus();}});box.append(row);}
+      if(!matches.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=query?'No catalog match. Pressing Run will use the typed model ID.':'No model catalog loaded. Enter a model ID manually.';box.append(empty);}
+      $('catalogHint').textContent=state.stale?'Showing a cached catalog that may be out of date.':(p.discovery.enabled?`${matches.length} matching model${matches.length===1?'':'s'}.`:'This provider has no model discovery; manual model IDs are supported.');
+    }
     async function providerChanged(){
       $('providerForm').classList.add('hidden');
       $('apiKey').value='';
@@ -242,9 +253,9 @@
     async function loadConfig(){state.config=await api('/api/config');fillProviderSelect();$('reasoning').value=state.config.defaults?.reasoning_effort||'medium';await providerChanged();}
     async function loadModels(){
       const p=selectedProvider(),generation=++state.catalogGeneration;
-      state.models=[];state.stale=false;renderModels();if(!p)return;
+      state.models=[];state.modelNames={};state.stale=false;renderModels();if(!p)return;
       const current=()=>generation===state.catalogGeneration&&selectedProvider()?.id===p.id;
-      try{const result=await api(`/api/models?provider=${encodeURIComponent(p.id)}`);if(!current())return;state.models=result.models||[];state.stale=!!result.stale;}
+      try{const result=await api(`/api/models?provider=${encodeURIComponent(p.id)}`);if(!current())return;state.models=result.models||[];state.modelNames=result.model_names||{};state.stale=!!result.stale;}
       catch(error){if(!current())return;notify(error.message,true);}
       if(!current())return;renderModels();if(p.discovery.enabled)refreshModels();
     }
@@ -277,7 +288,7 @@ async function saveProvider(){if(state.savingProvider)return;state.savingProvide
       const p=selectedProvider();if(!p)return;const generation=++state.catalogGeneration;
       const current=()=>generation===state.catalogGeneration&&selectedProvider()?.id===p.id;
       const button=$('refreshBtn');button.disabled=true;button.innerHTML='Loading…';
-      try{const result=await api('/api/models/refresh',{method:'POST',body:JSON.stringify({provider:p.id})});if(!current())return;state.models=result.models||[];state.stale=false;renderModels();notify(`Loaded ${state.models.length} models.`);}
+      try{const result=await api('/api/models/refresh',{method:'POST',body:JSON.stringify({provider:p.id})});if(!current())return;state.models=result.models||[];state.modelNames=result.model_names||{};state.stale=false;renderModels();notify(`Loaded ${state.models.length} models.`);}
       catch(error){if(current())notify(error.message,true);}
       finally{if(current()){button.innerHTML='<span aria-hidden="true">↻</span> Refresh models';button.disabled=!p.discovery.enabled;}}
     }
