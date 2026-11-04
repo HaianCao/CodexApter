@@ -78,6 +78,7 @@ def test_custom_child_requires_its_own_exact_catalog_profile_and_effort(tmp_path
 
 @pytest.mark.parametrize("main,expected", [("main", True), ("worker", False)])
 def test_gateway_blocks_unsafe_reopen_only_when_configured_child_model_differs(main, expected):
+    pytest.importorskip("protoverta")
     from codex_adapter.config import Config, Provider
     from codex_adapter.launcher import _gateway
 

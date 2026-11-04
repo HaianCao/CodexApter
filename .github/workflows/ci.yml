@@ -8,17 +8,30 @@ permissions:
   contents: read
 
 jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: false
+      - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+
   test-windows:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         gateway: [false, true]
+        python-version: ['3.11', '3.13']
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -37,13 +50,22 @@ jobs:
         run: |
           python -c "from protoverta.server import GatewayConfig; import dataclasses; assert {'retry_attempts','shared_admission_db','client_tool_search','provider_profiles'} <= {f.name for f in dataclasses.fields(GatewayConfig)}"
           if ($LASTEXITCODE) { throw 'Incompatible gateway runtime' }
-          python -c "import xml.etree.ElementTree as E; skipped=[t.attrib for t in E.parse('test-results.xml').iter('testcase') if t.find('skipped') is not None and any(n in t.get('classname','') for n in ('test_gateway_limits','test_gateway_runtime','test_auth_mode'))]; assert not skipped, skipped"
+          python scripts/check_test_report.py test-results.xml
+      - name: Direct-only test evidence permits optional gateway skips
+        if: ${{ !matrix.gateway }}
+        run: python scripts/check_test_report.py test-results.xml --allow-skips
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codex-tests-${{ matrix.python-version }}-gateway-${{ matrix.gateway }}
+          path: test-results.xml
       - name: Lint
         run: python -m ruff check src tests scripts
       - name: Build wheel and verify bundled frontend assets
         shell: pwsh
         run: |
           python -m pip wheel --no-deps . --wheel-dir dist
+          if ($LASTEXITCODE) { throw 'Wheel build failed' }
           python -c "import glob, zipfile; wheel=glob.glob('dist/*.whl')[0]; names=set(zipfile.ZipFile(wheel).namelist()); expected={'codex_adapter/web_template.html','codex_adapter/assets/CodexApter_white.png','codex_adapter/assets/CodexApter_black.png','codex_adapter/assets/CodexApter_white_icon.png','codex_adapter/assets/CodexApter_black_icon.png'}; missing=expected-names; assert not missing, f'Missing package files: {missing}'"
       - name: Parse scripts with Windows PowerShell 5.1
         shell: powershell
