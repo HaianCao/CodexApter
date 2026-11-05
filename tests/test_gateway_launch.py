@@ -23,7 +23,7 @@ class GatewayLaunchTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.provider = Provider(
             "chat", "Chat upstream", "https://example.test/v1",
-            protocol="chat_completions", execution_mode="gateway", auth_secret_ref="chat-main",
+            protocol="chat", execution_mode="gateway", auth_secret_ref="chat-main",
         )
         self.config = Config(
             providers={"chat": self.provider},

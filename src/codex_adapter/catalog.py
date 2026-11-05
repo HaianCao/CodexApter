@@ -72,7 +72,7 @@ def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
             "auth_secret_ref": provider.auth_secret_ref, "auth_mode": provider.auth_mode,
             "catalog_policy_file": provider.gateway_runtime.get("catalog_policy_file", "")}
     result["catalog_policy_fingerprint"] = catalog_policy_fingerprint(config.path if config else None, provider)
-    if provider.protocol == "anthropic_messages":
+    if provider.protocol == "messages":
         result["anthropic_version"] = _MESSAGES_API_VERSION
     if config is not None:
         if token is _UNSET:
@@ -134,7 +134,7 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
     if provider.discovery.response_format != "openai_models_list":
         raise DiscoveryError(f"Unsupported model discovery format '{provider.discovery.response_format}'.")
     headers = {"Accept": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
-    if provider.protocol == "anthropic_messages":
+    if provider.protocol == "messages":
         # Match the Messages contract already used by the gateway and ClaudApter.
         headers["anthropic-version"] = _MESSAGES_API_VERSION
     if token is _UNSET:
@@ -147,7 +147,7 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
             from protoverta.discovery import CatalogPolicy, fetch_catalog
 
             policy_file = provider.gateway_runtime.get("catalog_policy_file")
-            policy = CatalogPolicy(path=provider.discovery.path, timeout=timeout, pagination="after_id" if provider.protocol == "anthropic_messages" else "none")
+            policy = CatalogPolicy(path=provider.discovery.path, timeout=timeout, pagination="after_id" if provider.protocol == "messages" else "none")
             if policy_file:
                 path = Path(policy_file).expanduser()
                 if not path.is_absolute():

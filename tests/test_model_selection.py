@@ -14,7 +14,7 @@ def test_setup_status_uses_exact_route_and_keeps_missing_evidence_unknown(tmp_pa
     )
     from protoverta.server import GatewayConfig
 
-    provider = Provider("p", "P", "https://fixture.test/v1", protocol="chat_completions", execution_mode="gateway", capabilities_file="evidence.json")
+    provider = Provider("p", "P", "https://fixture.test/v1", protocol="chat", execution_mode="gateway", capabilities_file="evidence.json")
     config = Config(providers={"p": provider}, path=tmp_path / "config.toml")
     gateway = GatewayConfig("chat", provider.base_url, "key", "local", client_profile="codex", namespace_tools="flatten")
     good = CapabilityRecord(provider.base_url, "chat", "ok", {"text": True, "streaming": True}, "2026-11-04", "fixture", context_window_tokens=16384)

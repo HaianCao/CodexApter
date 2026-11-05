@@ -13,7 +13,7 @@ def test_gateway_catalog_mapping_cache_scope_and_no_certification(tmp_path):
     pytest.importorskip("protoverta.discovery")
     from protoverta.discovery import ModelInfo
 
-    provider = Provider("demo", "Demo", "https://example.test/api/v1", protocol="chat_completions", execution_mode="gateway", discovery=Discovery(enabled=True))
+    provider = Provider("demo", "Demo", "https://example.test/api/v1", protocol="chat", execution_mode="gateway", discovery=Discovery(enabled=True))
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     cache = tmp_path / "cache.json"
     with patch("codex_adapter.catalog.resolve_token", return_value="fixture-one"), patch("protoverta.discovery.fetch_catalog", return_value=(ModelInfo("m", "Model", context_window_tokens=1000),)) as fetch:

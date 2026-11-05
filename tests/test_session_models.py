@@ -6,7 +6,7 @@ from codex_adapter.config import Config, Provider
 from codex_adapter.launcher import _gateway
 
 
-@pytest.mark.parametrize("protocol", ["responses", "chat_completions", "anthropic_messages"])
+@pytest.mark.parametrize("protocol", ["responses", "chat", "messages"])
 def test_snapshot_uses_only_explicit_session_models_without_discovery(tmp_path, protocol):
     pytest.importorskip("protoverta")
     provider = Provider("current", "Visible name", "https://example.test/v1", protocol=protocol, execution_mode="gateway")

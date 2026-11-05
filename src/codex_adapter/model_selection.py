@@ -11,7 +11,7 @@ def _fallback_status(provider):
     count_mode = runtime.get("token_count_mode", "off") or "off"
     protocol = getattr(provider, "protocol", "responses")
     if count_mode == "native":
-        count_category = "exact" if protocol in ("responses", "anthropic_messages") else "unavailable"
+        count_category = "exact" if protocol in ("responses", "messages") else "unavailable"
     elif count_mode == "estimate" or preflight in ("estimate", "reject_estimate"):
         count_category = "estimate"
     else:
@@ -35,7 +35,7 @@ def model_status(config, provider, model):
         from protoverta.capabilities import CapabilityRegistry
         from protoverta.selection_status import selection_status
 
-        upstream = {"responses": "responses", "chat_completions": "chat", "anthropic_messages": "messages"}[provider.protocol]
+        upstream = provider.protocol
         path = Path(provider.capabilities_file).expanduser()
         if not path.is_absolute():
             path = (config.path or config_path()).resolve().parent / path

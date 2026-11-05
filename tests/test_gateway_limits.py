@@ -9,7 +9,7 @@ from codex_adapter.launcher import _gateway
 
 
 def test_runtime_limits_round_trip_and_reach_gateway(tmp_path):
-    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat_completions", execution_mode="gateway")
+    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat", execution_mode="gateway")
     provider.gateway_limits = {"total_timeout": 321.5, "progress_timeout": 60, "max_stream_items": 20}
     config = Config(providers={"demo": provider}, path=tmp_path / "settings.toml")
     save(config)
@@ -30,7 +30,7 @@ def test_direct_mode_does_not_accept_gateway_limits():
 
 def test_runtime_options_reach_optional_gateway():
     pytest.importorskip("protoverta")
-    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat_completions", execution_mode="gateway")
+    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat", execution_mode="gateway")
     provider.gateway_limits = {"total_timeout": 321.5, "max_stream_items": 20}
     with patch("codex_adapter.launcher.resolve_token", return_value="fixture-key"):
         gateway, _ = _gateway(Config(providers={"demo": provider}), provider)

@@ -82,7 +82,7 @@ def test_gateway_blocks_unsafe_reopen_only_when_configured_child_model_differs(m
     from codex_adapter.config import Config, Provider
     from codex_adapter.launcher import _gateway
 
-    provider = Provider("fixture", "Fixture", "https://example.invalid/v1", protocol="chat_completions", execution_mode="gateway", agent_models={"policy": "custom", "default": "worker", "effort": "low"})
+    provider = Provider("fixture", "Fixture", "https://example.invalid/v1", protocol="chat", execution_mode="gateway", agent_models={"policy": "custom", "default": "worker", "effort": "low"})
     from unittest.mock import patch
 
     with patch("codex_adapter.launcher.resolve_token", return_value="synthetic"):

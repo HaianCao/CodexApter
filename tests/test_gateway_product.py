@@ -17,7 +17,7 @@ from codex_adapter.route_doctor import route_doctor
 
 
 def provider():
-    return Provider("demo", "Demo", "https://example.test/v1", protocol="chat_completions", execution_mode="gateway")
+    return Provider("demo", "Demo", "https://example.test/v1", protocol="chat", execution_mode="gateway")
 
 
 def test_product_runtime_values_and_diagnostic_paths(tmp_path):

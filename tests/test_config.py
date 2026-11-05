@@ -28,9 +28,23 @@ from codex_adapter.errors import ConfigError
 
 
 class ConfigTests(unittest.TestCase):
+    def test_legacy_protocol_names_load_and_save_as_shared_names(self):
+        self.assertEqual(Provider("p", "P", "https://example.test/v1", protocol="anthropic_messages").protocol, "messages")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text('schema_version = 1\n\n[providers.legacy]\ndisplay_name = "Legacy"\nbase_url = "https://example.test/v1"\n'
+                            'protocol = "chat_completions"\nexecution_mode = "gateway"\n', encoding="utf-8")
+            config = load(path)
+            self.assertEqual(config.providers["legacy"].protocol, "chat")
+            save(config, path)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('protocol = "chat"', text)
+            self.assertNotIn("chat_completions", text)
+            self.assertEqual(load(path).providers["legacy"].protocol, "chat")
+
     def test_messages_system_models_round_trip_and_validation(self):
         with tempfile.TemporaryDirectory() as directory:
-            provider = Provider("demo", "Demo", "https://example.test/v1", protocol="anthropic_messages", execution_mode="gateway", messages_system_models=["verified-model"])
+            provider = Provider("demo", "Demo", "https://example.test/v1", protocol="messages", execution_mode="gateway", messages_system_models=["verified-model"])
             config = Config(providers={"demo": provider}, path=Path(directory) / "config.toml")
             save(config)
             self.assertEqual(load(config.path).providers["demo"].messages_system_models, ["verified-model"])
@@ -86,6 +100,17 @@ class ConfigTests(unittest.TestCase):
                 os.environ.pop("DEMO_API_TOKEN", None)
                 self.assertEqual(resolve_token(config, config.providers["demo"]), "sample-token")
                 self.assertEqual(env_path.read_text(encoding="utf-8"), 'DEMO_API_TOKEN="sample-token"\n')
+
+    def test_saved_key_wins_over_stale_environment_variable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            env_path.write_text('DEMO_STALE_TOKEN="saved-key"\n', encoding="utf-8")
+            provider = Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")
+            config = Config(providers={"demo": provider}, secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_STALE_TOKEN")}, env_file=env_path)
+            with patch.dict("os.environ", {"DEMO_STALE_TOKEN": "stale-key"}):
+                self.assertEqual(resolve_token(config, provider), "saved-key")
+                env_path.write_text("", encoding="utf-8")
+                self.assertEqual(resolve_token(config, provider), "stale-key")
 
     def test_dotenv_round_trips_quoted_api_keys_and_removes_only_selected_key(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -171,12 +196,12 @@ class ConfigTests(unittest.TestCase):
 [providers.nim]
 display_name = "NVIDIA NIM"
 base_url = "https://example.test/v1"
-protocol = "chat_completions"
+protocol = "chat"
 execution_mode = "gateway"
 ''', encoding="utf-8")
             config = load(path)
             self.assertEqual(config.providers["nim"].display_name, "NVIDIA NIM")
-            self.assertEqual(config.providers["nim"].protocol, "chat_completions")
+            self.assertEqual(config.providers["nim"].protocol, "chat")
             self.assertEqual(config.providers["nim"].execution_mode, "gateway")
 
     def test_non_responses_provider_requires_gateway_mode(self):
@@ -186,12 +211,12 @@ execution_mode = "gateway"
 [providers.demo]
 display_name = "Demo"
 base_url = "https://example.test/v1"
-protocol = "chat_completions"
+protocol = "chat"
 execution_mode = "direct"
 ''', encoding="utf-8")
             with self.assertRaisesRegex(ConfigError, "requires gateway mode"):
                 load(path)
-            self.assertEqual(load(path, allow_legacy_protocols=True).providers["demo"].protocol, "chat_completions")
+            self.assertEqual(load(path, allow_legacy_protocols=True).providers["demo"].protocol, "chat")
 
     def test_invalid_toml_table_shapes_raise_config_error(self):
         with tempfile.TemporaryDirectory() as directory:

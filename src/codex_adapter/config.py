@@ -14,7 +14,10 @@ from .errors import ConfigError
 from .toml_text import toml_value
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
-_PROTOCOLS = {"responses", "chat_completions", "anthropic_messages"}
+# Protocol names match Protoverta and ClaudApter. Older CodexApter configs used
+# the longer names; they are accepted on input and saved in the shared form.
+_PROTOCOLS = {"responses", "chat", "messages"}
+_LEGACY_PROTOCOLS = {"chat_completions": "chat", "anthropic_messages": "messages"}
 _MODES = {"auto", "direct", "gateway"}
 _REASONING_EFFORTS = {"low", "medium", "high"}
 
@@ -143,6 +146,14 @@ class Provider:
     gateway_runtime: dict = field(default_factory=dict)
     agent_models: dict = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        self.protocol = normalize_protocol(self.protocol)
+
+
+def normalize_protocol(value: Any) -> Any:
+    """Map a legacy CodexApter protocol name to the shared name; leave others unchanged."""
+    return _LEGACY_PROTOCOLS.get(value, value) if isinstance(value, str) else value
+
 
 def validate_client_tool_search(value: Any, protocol: str, mode: str) -> str:
     if value not in ("reject", "function"):
@@ -161,7 +172,7 @@ def validate_auth_mode(value: Any, mode: str) -> str:
 
 
 def validate_public_reasoning(value: Any, protocol: str, mode: str) -> bool:
-    if not isinstance(value, bool) or (value and (protocol != "chat_completions" or mode != "gateway")):
+    if not isinstance(value, bool) or (value and (protocol != "chat" or mode != "gateway")):
         raise ConfigError("public_reasoning must be boolean and requires a Chat Completions gateway provider.")
     return value
 
@@ -183,7 +194,7 @@ def validate_system_models(value: Any, protocol: str, mode: str) -> list[str]:
         raise ConfigError("messages_system_models must be an array of exact model IDs.")
     if len(value) != len(set(value)):
         raise ConfigError("messages_system_models cannot contain duplicates.")
-    if value and (protocol != "anthropic_messages" or mode != "gateway"):
+    if value and (protocol != "messages" or mode != "gateway"):
         raise ConfigError("messages_system_models requires a Messages provider in gateway mode.")
     return list(value)
 
@@ -335,7 +346,7 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         item = _table(item, f"providers.{name}")
         _string(item.get("base_url"), f"providers.{name}.base_url", True)
         base_url = validate_base_url(item["base_url"])
-        protocol = _string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True)
+        protocol = normalize_protocol(_string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True))
         mode = _string(item.get("execution_mode", "direct"), f"providers.{name}.execution_mode", required=True)
         if protocol not in _PROTOCOLS or mode not in _MODES:
             raise ConfigError(f"providers.{name} has unsupported protocol or execution_mode.")
@@ -367,7 +378,7 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         from .gateway_options import validate_gateway_limits
         providers[name].gateway_limits = validate_gateway_limits(item.get("gateway_limits", {}), mode)
         # Preserve old Messages configurations which previously used x-api-key.
-        providers[name].auth_mode = validate_auth_mode(item.get("auth_mode", "api_key" if protocol == "anthropic_messages" else "bearer"), mode)
+        providers[name].auth_mode = validate_auth_mode(item.get("auth_mode", "api_key" if protocol == "messages" else "bearer"), mode)
         providers[name].client_tool_search = validate_client_tool_search(item.get("client_tool_search", "reject"), protocol, mode)
         from .gateway_options import validate_gateway_runtime
 

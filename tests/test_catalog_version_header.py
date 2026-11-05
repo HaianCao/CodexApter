@@ -70,7 +70,7 @@ def test_selected_protocol_version_and_auth_reach_every_catalog_page(tmp_path, m
     monkeypatch.setenv("no_proxy", "127.0.0.1")
     # Both auth modes are independent of protocol; no key lookup is needed.
     with provider_server(protocol, auth, paginated=protocol == "messages") as (base, observed):
-        wire = {"messages": "anthropic_messages", "chat": "chat_completions", "responses": "responses"}[protocol] if CODEX else protocol
+        wire = {"messages": "messages", "chat": "chat", "responses": "responses"}[protocol] if CODEX else protocol
         provider = configuration.Provider("fixture", "Fixture", base, protocol=wire, execution_mode=mode, auth_mode=auth)
         if CODEX:
             provider.discovery.enabled = True
@@ -94,7 +94,7 @@ def test_selected_protocol_version_and_auth_reach_every_catalog_page(tmp_path, m
 def test_codex_messages_cache_rejects_missing_or_changed_version_policy(tmp_path, monkeypatch):
     config = configuration.Config(path=tmp_path / "config.toml")
     provider = configuration.Provider("fixture", "Fixture", "https://example.invalid/v1",
-                                      protocol="anthropic_messages", execution_mode="gateway")
+                                      protocol="messages", execution_mode="gateway")
     monkeypatch.setattr(catalog, "resolve_token", lambda *a, **kw: "synthetic-key")
     current = catalog._identity(provider, config, token="synthetic-key")
     old = {key: value for key, value in current.items() if key != "anthropic_version"}

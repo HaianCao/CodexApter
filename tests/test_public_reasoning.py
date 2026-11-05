@@ -11,7 +11,7 @@ from codex_adapter.web import public_config
 
 
 def test_unsigned_public_reasoning_is_explicit_persistent_and_forwarded(tmp_path):
-    provider = Provider("nim", "NIM", "https://example.test/v1", protocol="chat_completions", execution_mode="gateway", public_reasoning=True)
+    provider = Provider("nim", "NIM", "https://example.test/v1", protocol="chat", execution_mode="gateway", public_reasoning=True)
     config = Config(providers={"nim": provider}, path=tmp_path / "config.toml")
     save(config)
     restored = load(config.path)
@@ -26,7 +26,7 @@ def test_unsigned_public_reasoning_is_explicit_persistent_and_forwarded(tmp_path
     assert server.GatewayConfig.call_args.kwargs["public_reasoning"] is True
 
 
-@pytest.mark.parametrize("value,protocol,mode", [("false", "chat_completions", "gateway"), (True, "responses", "gateway"), (True, "anthropic_messages", "gateway"), (True, "chat_completions", "direct")])
+@pytest.mark.parametrize("value,protocol,mode", [("false", "chat", "gateway"), (True, "responses", "gateway"), (True, "messages", "gateway"), (True, "chat", "direct")])
 def test_unsigned_reasoning_cannot_be_enabled_for_wrong_protocol_or_mode(value, protocol, mode):
     with pytest.raises(ConfigError):
         validate_public_reasoning(value, protocol, mode)

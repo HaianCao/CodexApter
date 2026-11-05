@@ -44,7 +44,7 @@ class DiagnosticsTests(unittest.TestCase):
             self.assertNotIn("secret-value", result)
 
     def test_probe_skips_non_responses_protocol(self):
-        provider = Provider("legacy", "Legacy", "https://example.test/v1", protocol="chat_completions")
+        provider = Provider("legacy", "Legacy", "https://example.test/v1", protocol="chat")
         result = probe_responses(Config(providers={"legacy": provider}), provider, "model")
         self.assertIn("SKIP", result)
 

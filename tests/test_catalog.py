@@ -44,7 +44,7 @@ class CatalogTests(unittest.TestCase):
             provider.base_url = "https://new.test/v1"
             self.assertEqual(cached_models(provider, cache), ([], True))
             provider.base_url = "https://example.test/v1"
-            provider.protocol = "chat_completions"
+            provider.protocol = "chat"
             self.assertEqual(cached_models(provider, cache), ([], True))
             provider.protocol = "responses"
             provider.discovery.path = "/other-models"

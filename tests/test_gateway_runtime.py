@@ -16,7 +16,7 @@ def test_invalid_runtime_policies_are_rejected(value):
 
 
 def test_runtime_config_round_trip_and_paths_are_relative_to_config_not_cwd(tmp_path):
-    protocol = "chat_completions"
+    protocol = "chat"
     provider = Provider("demo", "Demo", "https://example.test/v1", protocol=protocol, execution_mode="gateway")
     provider.gateway_runtime = {"shared_admission_db": "budget.sqlite", "shared_requests": 10, "shared_concurrency": 2, "retry_attempts": 2, "catalog_policy_file": "catalog.json", "context_preflight": "estimate", "require_verified_routes": False}
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
@@ -32,7 +32,7 @@ def test_runtime_config_round_trip_and_paths_are_relative_to_config_not_cwd(tmp_
 
 def test_runtime_options_reach_actual_core(tmp_path):
     pytest.importorskip("protoverta")
-    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat_completions", execution_mode="gateway")
+    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat", execution_mode="gateway")
     provider.gateway_runtime = {"shared_admission_db": "budget.sqlite", "retry_attempts": 2}
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     with patch("codex_adapter.launcher.resolve_token", return_value="fixture"):

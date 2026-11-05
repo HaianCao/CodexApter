@@ -91,7 +91,7 @@ def test_selected_policy_is_child_only_and_keeps_auth_and_main_effort(tmp_path, 
     monkeypatch.setenv("UNRELATED_SETTING", "preserve-me")
     if gateway:
         provider.execution_mode = "gateway"
-        provider.protocol = "chat_completions"
+        provider.protocol = "chat"
         monkeypatch.setattr(launcher, "cross_protocol_overrides", lambda _: [])
     before = dict(os.environ)
     args, env = launcher.build_invocation(config, provider, "provider/selected", "high", [],

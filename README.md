@@ -142,7 +142,7 @@ alpha-6 wheel. They do not enable hidden reasoning migration or model fallback.
 
 ## Privacy and security
 
-Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). Direct mode does not proxy conversations; gateway mode starts a temporary loopback Protoverta server and stops it when Codex exits.
+Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. A key saved there takes precedence over an environment variable of the same name; the environment variable is used only when the file has no value. The setup page listens only on your own computer (`127.0.0.1`). Direct mode does not proxy conversations; gateway mode starts a temporary loopback Protoverta server and stops it when Codex exits.
 
 Gateway mode is experimental. Client interoperability is tested with scripted local upstreams; each real provider/model still needs its own compatibility check.
 

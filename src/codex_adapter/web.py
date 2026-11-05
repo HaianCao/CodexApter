@@ -18,6 +18,7 @@ from .config import (
     Provider,
     SecretReference,
     config_path,
+    normalize_protocol,
     save,
     validate_auth_mode,
     validate_base_url,
@@ -329,8 +330,8 @@ def serve(config: Config) -> int:
                     display_name = str(body.get("display_name", "")).strip()
                     base_url = validate_base_url(body.get("base_url", ""))
                     current = config.providers.get(provider_id)
-                    protocol = str(body.get("protocol", current.protocol if current else "responses"))
-                    if protocol not in {"responses", "chat_completions", "anthropic_messages"}:
+                    protocol = normalize_protocol(str(body.get("protocol", current.protocol if current else "responses")))
+                    if protocol not in {"responses", "chat", "messages"}:
                         raise ConfigError("Choose Responses, Chat Completions, or Messages.")
                     execution_mode = str(body.get("execution_mode", current.execution_mode if current else "direct"))
                     if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):

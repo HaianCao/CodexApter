@@ -118,7 +118,7 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
         from protoverta.server import GatewayConfig, gateway_session
     except ImportError as exc:
         raise LaunchError("Gateway mode needs a compatible Protoverta build installed in this Python environment.") from exc
-    upstream = {"responses": Protocol.RESPONSES, "chat_completions": Protocol.CHAT, "anthropic_messages": Protocol.MESSAGES}.get(provider.protocol)
+    upstream = {"responses": Protocol.RESPONSES, "chat": Protocol.CHAT, "messages": Protocol.MESSAGES}.get(provider.protocol)
     if upstream is None:
         raise LaunchError(f"Unsupported upstream protocol: {provider.protocol}")
     token = resolve_token(config, provider)

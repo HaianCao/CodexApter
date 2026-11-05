@@ -1,4 +1,4 @@
-"""TOML value rendering shared by configuration writers and -c overrides."""
+"""TOML value rendering for configuration files and CLI overrides."""
 
 import json
 
