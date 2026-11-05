@@ -13,7 +13,9 @@ def test_late_catalog_results_cannot_change_current_provider(scenario):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is required for the frontend async regression harness")
-    functions = "\n".join(re.search(r"    async function " + name + r"\(\)\{.*?\n    \}", _HTML, re.DOTALL).group(0) for name in ("loadModels", "refreshModels"))
+    functions = "\n".join(
+        re.search(r"    async function " + name + r"\(\)\{.*?\n    \}", _HTML, re.DOTALL).group(0) for name in ("loadModels", "refreshModels")
+    )
     harness = r"""
 const assert=require('node:assert/strict');
 let provider={id:'A',discovery:{enabled:true}},pending={},messages=[],renders=[];
@@ -38,6 +40,13 @@ function api(path,options){let key=options?JSON.parse(options.body).provider:pat
   console.log(JSON.stringify({scenario,passed:true}));
 })().catch(error=>{console.error(error);process.exitCode=1});
 """
-    result = subprocess.run([node, "-"], input=harness + functions + "\nconst scenario=" + json.dumps(scenario) + ";\n" + checks, encoding="utf-8", capture_output=True, timeout=10, check=False)
+    result = subprocess.run(
+        [node, "-"],
+        input=harness + functions + "\nconst scenario=" + json.dumps(scenario) + ";\n" + checks,
+        encoding="utf-8",
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["passed"]

@@ -45,8 +45,10 @@ def agent_overrides(prefix, options, model, effort):
     requested_effort = effort if requested_effort == "inherit" else requested_effort
     if requested_effort not in ("low", "medium", "high"):
         raise LaunchError("Choose low, medium or high effort for the agent model.")
-    return [f"agents.default_subagent_model={toml_value(selected)}",
-            f"agents.default_subagent_reasoning_effort={toml_value(requested_effort, ensure_ascii=True)}"]
+    return [
+        f"agents.default_subagent_model={toml_value(selected)}",
+        f"agents.default_subagent_reasoning_effort={toml_value(requested_effort, ensure_ascii=True)}",
+    ]
 
 
 def agent_models_toml(options):

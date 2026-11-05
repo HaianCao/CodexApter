@@ -66,7 +66,16 @@ def test_non_ascii_query_and_header_are_unauthorized_not_handler_errors(tmp_path
             assert response.status == 200
 
 
-@pytest.mark.parametrize("invalid_url", ["https://example.test/api/v1/responses/", "https://example.test/with space", "https://example.test:0/v1", "https://example.test/v1\n", "\0https://example.test/v1"])
+@pytest.mark.parametrize(
+    "invalid_url",
+    [
+        "https://example.test/api/v1/responses/",
+        "https://example.test/with space",
+        "https://example.test:0/v1",
+        "https://example.test/v1\n",
+        "\0https://example.test/v1",
+    ],
+)
 def test_invalid_url_is_rejected_without_changing_provider_or_key(tmp_path, monkeypatch, invalid_url):
     monkeypatch.setenv("FIXTURE_TOKEN", "synthetic-original")
     with listener(tmp_path, monkeypatch) as (_, url, token, _):

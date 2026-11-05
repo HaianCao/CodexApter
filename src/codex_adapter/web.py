@@ -84,10 +84,7 @@ def _default_secret_names(provider_id: str) -> tuple[str, str]:
 
 def _new_secret_names(config: Config, provider_id: str) -> tuple[str, str]:
     secret_ref, secret_env = _default_secret_names(provider_id)
-    if secret_ref in config.secrets or any(
-        ref.env_var and ref.env_var.casefold() == secret_env.casefold()
-        for ref in config.secrets.values()
-    ):
+    if secret_ref in config.secrets or any(ref.env_var and ref.env_var.casefold() == secret_env.casefold() for ref in config.secrets.values()):
         raise ConfigError("This provider ID conflicts with an existing API-key name. Choose another provider ID.")
     return secret_ref, secret_env
 
@@ -110,6 +107,7 @@ def _remove_provider_config(config: Config, provider_id: str) -> str | None:
 def persist_change(config: Config, updated: Config, env_var=None, token=None) -> None:
     """Commit memory only after disk, restoring exact secret bytes on failure."""
     from .config import validate_secret_names
+
     validate_secret_names(updated)
     target = env_file_path(config)
     previous = target.read_bytes() if env_var and token is not None and target.exists() else None
@@ -200,7 +198,10 @@ def serve(config: Config) -> int:
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Referrer-Policy", "no-referrer")
-                self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'")
+                self.send_header(
+                    "Content-Security-Policy",
+                    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+                )
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Length", str(len(page)))
                 self.end_headers()
@@ -306,7 +307,12 @@ def serve(config: Config) -> int:
                     models = fetch_models(snapshot, provider, cache_sink=entries.append, budget=budget, token=credential)
                 with state_lock, guard.edit():
                     current = config.providers.get(provider.id)
-                    if run_request is not None or current != provider or _identity(current, config) != identity or (entries and entries[0]["identity"] != identity):
+                    if (
+                        run_request is not None
+                        or current != provider
+                        or _identity(current, config) != identity
+                        or (entries and entries[0]["identity"] != identity)
+                    ):
                         raise AdapterError("Provider settings changed during refresh. Refresh models again.")
                     if entries:
                         store_catalog(provider.id, entries[0])
@@ -337,11 +343,21 @@ def serve(config: Config) -> int:
                     if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
                         raise ConfigError("Chat Completions and Messages providers require gateway mode.")
                     max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else 4096)
-                    system_models = validate_system_models(body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode)
-                    capabilities_file, require_verified = validate_capability_settings(body.get("capabilities_file", current.capabilities_file if current else ""), body.get("require_verified_capabilities", current.require_verified_capabilities if current else False), execution_mode)
-                    public_reasoning = validate_public_reasoning(body.get("public_reasoning", current.public_reasoning if current else False), protocol, execution_mode)
+                    system_models = validate_system_models(
+                        body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode
+                    )
+                    capabilities_file, require_verified = validate_capability_settings(
+                        body.get("capabilities_file", current.capabilities_file if current else ""),
+                        body.get("require_verified_capabilities", current.require_verified_capabilities if current else False),
+                        execution_mode,
+                    )
+                    public_reasoning = validate_public_reasoning(
+                        body.get("public_reasoning", current.public_reasoning if current else False), protocol, execution_mode
+                    )
                     upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "auto"))
-                    if upstream_reasoning not in {"auto", "provider_default", "disabled", "openrouter_disabled"} or (execution_mode != "gateway" and upstream_reasoning not in {"auto", "provider_default"}):
+                    if upstream_reasoning not in {"auto", "provider_default", "disabled", "openrouter_disabled"} or (
+                        execution_mode != "gateway" and upstream_reasoning not in {"auto", "provider_default"}
+                    ):
                         raise ConfigError("Choose a valid upstream reasoning policy; disabling requires gateway mode.")
                     if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens <= 0:
                         raise ConfigError("Gateway token limit must be a positive integer.")
@@ -365,7 +381,9 @@ def serve(config: Config) -> int:
                         base_url=base_url,
                         protocol=protocol,
                         auth_mode=validate_auth_mode(body.get("auth_mode", current.auth_mode if current else "bearer"), execution_mode),
-                        client_tool_search=validate_client_tool_search(body.get("client_tool_search", current.client_tool_search if current else "reject"), protocol, execution_mode),
+                        client_tool_search=validate_client_tool_search(
+                            body.get("client_tool_search", current.client_tool_search if current else "reject"), protocol, execution_mode
+                        ),
                         execution_mode=execution_mode,
                         auth_secret_ref=secret_ref,
                         default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
@@ -428,7 +446,10 @@ def serve(config: Config) -> int:
                 with state_lock, guard.edit():
                     self._delete()
             except (OSError, AdapterError, ValueError):
-                self._json({"error": "Could not remove provider; settings were not committed. Reopen setup if settings changed elsewhere."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                self._json(
+                    {"error": "Could not remove provider; settings were not committed. Reopen setup if settings changed elsewhere."},
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
 
         def _delete(self):
             if not self._authorized():

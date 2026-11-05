@@ -24,7 +24,9 @@ def subagent_overrides(prefix, enabled, catalog, model, agent_models):
     for selected in models:
         _, entry = load_catalog(catalog, selected)
         if entry.get("supports_search_tool") is not False or entry.get("tool_mode") is not None:
-            raise LaunchError("Every parent/child catalog entry requires explicit supports_search_tool=false and no code-only tool mode. Deferred tool search is not certified here.")
+            raise LaunchError(
+                "Every parent/child catalog entry requires explicit supports_search_tool=false and no code-only tool mode. Deferred tool search is not certified here."
+            )
         if agent_models.get("policy") == "custom" and selected == agent_models["default"]:
             efforts = entry.get("supported_reasoning_levels")
             if not isinstance(efforts, list) or not any(isinstance(item, dict) and item.get("effort") == agent_models["effort"] for item in efforts):

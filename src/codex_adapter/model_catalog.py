@@ -20,10 +20,18 @@ def _unique_object(pairs):
 
 def validate_native_entry(entry):
     """Required ModelInfo structure observed in Codex CLI 0.166.0."""
-    required = {"slug": str, "display_name": str, "supported_reasoning_levels": list,
-                "shell_type": str, "visibility": str, "supported_in_api": bool,
-                "priority": int, "support_verbosity": bool, "truncation_policy": dict,
-                "experimental_supported_tools": list}
+    required = {
+        "slug": str,
+        "display_name": str,
+        "supported_reasoning_levels": list,
+        "shell_type": str,
+        "visibility": str,
+        "supported_in_api": bool,
+        "priority": int,
+        "support_verbosity": bool,
+        "truncation_policy": dict,
+        "experimental_supported_tools": list,
+    }
     if not isinstance(entry, dict) or any(type(entry.get(key)) is not kind for key, kind in required.items()):
         raise ValueError("missing or invalid native ModelInfo field")
     if not entry["slug"] or len(entry["slug"]) > 512 or any(c.isspace() or ord(c) < 32 for c in entry["slug"]):
@@ -31,8 +39,12 @@ def validate_native_entry(entry):
     if not entry["display_name"] or entry["visibility"] not in {"list", "hide"}:
         raise ValueError("invalid native model name or visibility")
     efforts = entry["supported_reasoning_levels"]
-    if any(not isinstance(item, dict) or item.get("effort") not in {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
-           or not isinstance(item.get("description"), str) for item in efforts):
+    if any(
+        not isinstance(item, dict)
+        or item.get("effort") not in {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+        or not isinstance(item.get("description"), str)
+        for item in efforts
+    ):
         raise ValueError("invalid native reasoning levels")
     if len({item["effort"] for item in efforts}) != len(efforts):
         raise ValueError("duplicate native reasoning levels")
@@ -97,5 +109,7 @@ def catalog_override(value: str | None, model: str, prefix=None) -> list[str]:
         for entry in models:
             validate_native_entry(entry)
     except (OSError, ValueError, KeyError, TypeError, RecursionError):
-        raise LaunchError("Custom catalog must contain complete, valid Codex 0.166.0 ModelInfo entries; unknown metadata is not filled from another model.") from None
+        raise LaunchError(
+            "Custom catalog must contain complete, valid Codex 0.166.0 ModelInfo entries; unknown metadata is not filled from another model."
+        ) from None
     return [f"model_catalog_json={toml_value(str(path), ensure_ascii=True)}"]

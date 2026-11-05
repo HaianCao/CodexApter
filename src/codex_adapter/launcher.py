@@ -35,13 +35,17 @@ def _bypass_loopback_proxy(env: dict[str, str]) -> None:
     env.update(NO_PROXY=merged, no_proxy=merged)
 
 
-def build_invocation(config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None) -> tuple[list[str], dict[str, str]]:
+def build_invocation(
+    config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None
+) -> tuple[list[str], dict[str, str]]:
     configured_base_url = validate_base_url(provider.base_url)
     validate_auth_mode(provider.auth_mode, provider.execution_mode)
     validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
     validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
     validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
-    if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")):
+    if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (
+        provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")
+    ):
         raise LaunchError("An explicit upstream reasoning policy requires gateway mode.")
     executable = shutil.which("codex")
     if not executable:
@@ -80,14 +84,14 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     # Codex's default ChatGPT/OpenAI provider. Config keys follow the official
     # Codex custom-provider schema; argv is passed as a list, never via a shell.
     overrides = [
-        f'model_provider={toml_value(provider.id, ensure_ascii=True)}',
-        f'model_providers.{provider.id}.name={toml_value(provider.display_name, ensure_ascii=True)}',
-        f'model_providers.{provider.id}.base_url={toml_value(base_url, ensure_ascii=True)}',
-        f'model_providers.{provider.id}.env_key={toml_value(env_name, ensure_ascii=True)}',
+        f"model_provider={toml_value(provider.id, ensure_ascii=True)}",
+        f"model_providers.{provider.id}.name={toml_value(provider.display_name, ensure_ascii=True)}",
+        f"model_providers.{provider.id}.base_url={toml_value(base_url, ensure_ascii=True)}",
+        f"model_providers.{provider.id}.env_key={toml_value(env_name, ensure_ascii=True)}",
         f'model_providers.{provider.id}.wire_api="responses"',
-        f'model_providers.{provider.id}.requires_openai_auth=false',
-        f'model_providers.{provider.id}.supports_websockets=false',
-        f'model_reasoning_effort={toml_value(reasoning, ensure_ascii=True)}',
+        f"model_providers.{provider.id}.requires_openai_auth=false",
+        f"model_providers.{provider.id}.supports_websockets=false",
+        f"model_reasoning_effort={toml_value(reasoning, ensure_ascii=True)}",
     ]
     overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model, prefix))
     if provider.execution_mode == "gateway":
@@ -103,8 +107,9 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
         raise LaunchError(str(exc)) from None
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
         overrides.extend(cross_protocol_overrides(prefix))
-        overrides.extend(subagent_overrides(prefix, os.environ.get("CODEX_CA_ENABLE_SUBAGENTS"),
-                                           os.environ.get("CODEX_CA_MODEL_CATALOG"), model, provider.agent_models))
+        overrides.extend(
+            subagent_overrides(prefix, os.environ.get("CODEX_CA_ENABLE_SUBAGENTS"), os.environ.get("CODEX_CA_MODEL_CATALOG"), model, provider.agent_models)
+        )
     overrides.extend(agent_overrides(prefix, provider.agent_models, model, reasoning))
     argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
     if any(not isinstance(arg, str) or "\0" in arg for arg in argv):
@@ -135,7 +140,9 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
             policy = validate_agent_models(provider.agent_models)
             identifiers = (model,) + ((policy["default"],) if policy.get("policy") == "custom" else ())
             names = cached_model_names(config, provider, identifiers, token=token)
-            registry_options["model_snapshot"] = ModelSnapshot(provider.base_url, upstream, tuple(SnapshotModel(mid, names.get(mid, mid)) for mid in dict.fromkeys(identifiers)))
+            registry_options["model_snapshot"] = ModelSnapshot(
+                provider.base_url, upstream, tuple(SnapshotModel(mid, names.get(mid, mid)) for mid in dict.fromkeys(identifiers))
+            )
         if provider.agent_models.get("policy") == "custom" and provider.agent_models.get("default") != model:
             registry_options["codex_model_safe_resume"] = True
         registry_options.update(runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path()))
@@ -159,7 +166,10 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
                 path = (config.path or config_path()).resolve().parent / path
             registry_options.update(capabilities=CapabilityRegistry.load(path), require_verified_capabilities=required)
         gateway = GatewayConfig(
-            upstream, provider.base_url, token, secrets.token_urlsafe(32),
+            upstream,
+            provider.base_url,
+            token,
+            secrets.token_urlsafe(32),
             "x-api-key" if validate_auth_mode(provider.auth_mode, provider.execution_mode) == "api_key" else "bearer",
             client_profile="codex" if upstream != Protocol.RESPONSES else "strict",
             default_max_output_tokens=provider.gateway_max_output_tokens,
@@ -190,9 +200,17 @@ def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
         from protoverta.capabilities import route_policies
         from protoverta.evidence_identity import evidence_options
 
-        registry.assess_route(gateway.upstream_base_url, gateway.upstream_protocol, model, features,
-                              source_protocol="responses", streaming=True, client_profile=gateway.client_profile,
-                              policies=route_policies(gateway), **evidence_options(gateway)).require(verified=gateway.require_verified_routes or gateway.require_current_evidence or gateway.evidence_max_age_days is not None)
+        registry.assess_route(
+            gateway.upstream_base_url,
+            gateway.upstream_protocol,
+            model,
+            features,
+            source_protocol="responses",
+            streaming=True,
+            client_profile=gateway.client_profile,
+            policies=route_policies(gateway),
+            **evidence_options(gateway),
+        ).require(verified=gateway.require_verified_routes or gateway.require_current_evidence or gateway.evidence_max_age_days is not None)
     except ValueError as exc:
         raise LaunchError(f"Model compatibility check failed: {exc}") from exc
 

@@ -32,9 +32,7 @@ def test_duplicate_secret_environment_names_are_rejected_before_key_write(tmp_pa
     config = Config(path=tmp_path / "config.toml", env_file=tmp_path / ".env")
     config.path.write_bytes(b"prior config")
     config.env_file.write_bytes(b"prior secrets")
-    updated = Config(path=config.path, secrets={
-        "one": SecretReference("one", env_var="DEMO_TOKEN"),
-        "two": SecretReference("two", env_var="demo_token")})
+    updated = Config(path=config.path, secrets={"one": SecretReference("one", env_var="DEMO_TOKEN"), "two": SecretReference("two", env_var="demo_token")})
     with patch("codex_adapter.web.store_token") as store, pytest.raises(ConfigError, match="same environment"):
         persist_change(config, updated, "DEMO_TOKEN", "fixture")
     store.assert_not_called()
@@ -48,9 +46,11 @@ def test_duplicate_secret_environment_names_are_rejected_before_key_write(tmp_pa
 
 
 def test_explicit_shared_reference_remains_supported(tmp_path):
-    config = Config(path=tmp_path / "config.toml", providers={
-        name: Provider(name, name, "https://example.test/v1", auth_secret_ref="shared") for name in ("a-b", "a_b")},
-        secrets={"shared": SecretReference("shared", env_var="SHARED_TOKEN")})
+    config = Config(
+        path=tmp_path / "config.toml",
+        providers={name: Provider(name, name, "https://example.test/v1", auth_secret_ref="shared") for name in ("a-b", "a_b")},
+        secrets={"shared": SecretReference("shared", env_var="SHARED_TOKEN")},
+    )
     save(config)
     assert {provider.auth_secret_ref for provider in load(config.path).providers.values()} == {"shared"}
 
@@ -65,7 +65,11 @@ def test_setup_api_collision_does_not_change_first_provider_key(tmp_path):
         listeners.append(server)
         return server
 
-    with patch.dict(os.environ, {"CODEX_CA_ENV_FILE": str(config.env_file), "TEST_A_TOKEN": "fixture-process-before"}), patch("codex_adapter.web.ThreadingHTTPServer", side_effect=server_factory), patch("codex_adapter.web.webbrowser.open", side_effect=opened.put):
+    with (
+        patch.dict(os.environ, {"CODEX_CA_ENV_FILE": str(config.env_file), "TEST_A_TOKEN": "fixture-process-before"}),
+        patch("codex_adapter.web.ThreadingHTTPServer", side_effect=server_factory),
+        patch("codex_adapter.web.webbrowser.open", side_effect=opened.put),
+    ):
         worker = threading.Thread(target=serve, args=(config,), daemon=True)
         worker.start()
         try:

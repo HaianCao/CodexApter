@@ -48,7 +48,8 @@ async function api(){return state.config}
   console.log('passed');
 })().catch(error=>{console.error(error);process.exitCode=1});
 """
-    result = subprocess.run([node, "-"], input=harness + changed + "\n" + loaded + "\n" + checks,
-                            encoding="utf-8", capture_output=True, timeout=10, check=False)
+    result = subprocess.run(
+        [node, "-"], input=harness + changed + "\n" + loaded + "\n" + checks, encoding="utf-8", capture_output=True, timeout=10, check=False
+    )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "passed"

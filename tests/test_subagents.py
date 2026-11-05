@@ -46,7 +46,11 @@ def test_deferred_or_code_only_tools_remain_outside_verified_subset(tmp_path, mo
 
 def test_exact_catalog_and_selected_model_enable_both_observed_flags(tmp_path, monkeypatch):
     monkeypatch.setattr(subagents, "detect_version", lambda _: (0, 166, 0))
-    assert subagents.subagent_overrides([], "1", catalog(tmp_path), "fixture", {"policy": "selected"}) == ["features.multi_agent=true", "agents.enabled=true", "agents.max_concurrent_threads_per_session=1"]
+    assert subagents.subagent_overrides([], "1", catalog(tmp_path), "fixture", {"policy": "selected"}) == [
+        "features.multi_agent=true",
+        "agents.enabled=true",
+        "agents.max_concurrent_threads_per_session=1",
+    ]
 
 
 def test_missing_catalog_or_unknown_model_fails_before_spawn(tmp_path, monkeypatch):
@@ -61,7 +65,11 @@ def test_missing_catalog_or_unknown_model_fails_before_spawn(tmp_path, monkeypat
 def test_custom_child_requires_its_own_exact_catalog_profile_and_effort(tmp_path, monkeypatch, fault):
     monkeypatch.setattr(subagents, "detect_version", lambda _: (0, 166, 0))
     main = {"slug": "main", "supports_search_tool": False}
-    child = {"slug": "worker", "supports_search_tool": fault == "child_search", "supported_reasoning_levels": [{"effort": "high" if fault == "wrong_effort" else "low"}]}
+    child = {
+        "slug": "worker",
+        "supports_search_tool": fault == "child_search",
+        "supported_reasoning_levels": [{"effort": "high" if fault == "wrong_effort" else "low"}],
+    }
     if fault == "child_code_mode":
         child["tool_mode"] = "code_mode_only"
     path = tmp_path / "models.json"
@@ -82,7 +90,14 @@ def test_gateway_blocks_unsafe_reopen_only_when_configured_child_model_differs(m
     from codex_adapter.config import Config, Provider
     from codex_adapter.launcher import _gateway
 
-    provider = Provider("fixture", "Fixture", "https://example.invalid/v1", protocol="chat", execution_mode="gateway", agent_models={"policy": "custom", "default": "worker", "effort": "low"})
+    provider = Provider(
+        "fixture",
+        "Fixture",
+        "https://example.invalid/v1",
+        protocol="chat",
+        execution_mode="gateway",
+        agent_models={"policy": "custom", "default": "worker", "effort": "low"},
+    )
     from unittest.mock import patch
 
     with patch("codex_adapter.launcher.resolve_token", return_value="synthetic"):

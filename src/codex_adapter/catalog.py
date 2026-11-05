@@ -38,10 +38,16 @@ def cached_model_names(config, provider, identifiers, *, token=_UNSET):
         info = entry.get("model_info", [])
         if not isinstance(info, list) or len(info) > 10000:
             return {}
-        return {item["id"]: item["display_name"] for item in info if isinstance(item, dict)
-                and isinstance(item.get("id"), str) and item["id"] in wanted
-                and isinstance(item.get("display_name"), str) and 1 <= len(item["display_name"]) <= 512
-                and not any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in item["display_name"])}
+        return {
+            item["id"]: item["display_name"]
+            for item in info
+            if isinstance(item, dict)
+            and isinstance(item.get("id"), str)
+            and item["id"] in wanted
+            and isinstance(item.get("display_name"), str)
+            and 1 <= len(item["display_name"]) <= 512
+            and not any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in item["display_name"])
+        }
     except (OSError, ValueError, TypeError, AttributeError, RecursionError):
         return {}
 
@@ -67,10 +73,15 @@ def _open(request, *, timeout):
 def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
     from .gateway_options import catalog_policy_fingerprint
 
-    result = {"base_url": provider.base_url, "protocol": provider.protocol,
-            "discovery_path": provider.discovery.path, "response_format": provider.discovery.response_format,
-            "auth_secret_ref": provider.auth_secret_ref, "auth_mode": provider.auth_mode,
-            "catalog_policy_file": provider.gateway_runtime.get("catalog_policy_file", "")}
+    result = {
+        "base_url": provider.base_url,
+        "protocol": provider.protocol,
+        "discovery_path": provider.discovery.path,
+        "response_format": provider.discovery.response_format,
+        "auth_secret_ref": provider.auth_secret_ref,
+        "auth_mode": provider.auth_mode,
+        "catalog_policy_file": provider.gateway_runtime.get("catalog_policy_file", ""),
+    }
     result["catalog_policy_fingerprint"] = catalog_policy_fingerprint(config.path if config else None, provider)
     if provider.protocol == "messages":
         result["anthropic_version"] = _MESSAGES_API_VERSION
@@ -128,7 +139,9 @@ def store_catalog(provider_id, entry, cache=None):
         pass  # A cache failure must not discard successful discovery.
 
 
-def fetch_models(config: Config, provider: Provider, *, cache: Path | None = None, timeout: float = 15.0, cache_sink=None, budget=None, token=_UNSET) -> list[str]:
+def fetch_models(
+    config: Config, provider: Provider, *, cache: Path | None = None, timeout: float = 15.0, cache_sink=None, budget=None, token=_UNSET
+) -> list[str]:
     if not provider.discovery.enabled:
         raise DiscoveryError(f"Provider '{provider.id}' does not expose model discovery.")
     if provider.discovery.response_format != "openai_models_list":
@@ -155,9 +168,11 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
                 policy = CatalogPolicy.load(path, provider.base_url)
             options = {}
             if budget is not None:
+
                 def upstream_open(request, *, timeout):
                     request.adapter_deadline = budget
                     return _open(request, timeout=min(timeout, budget.remaining()))
+
                 options["upstream_open"] = upstream_open
             info = [item.as_dict() for item in fetch_catalog(provider.base_url, headers, policy, **options)]
         except ImportError:
@@ -175,7 +190,7 @@ def fetch_models(config: Config, provider: Provider, *, cache: Path | None = Non
         return models
     request = Request(provider.base_url + provider.discovery.path, headers=headers, method="GET")
     try:
-        with (nullcontext(budget) if budget is not None else Deadline(timeout)) as active_budget:
+        with nullcontext(budget) if budget is not None else Deadline(timeout) as active_budget:
             request.adapter_deadline = active_budget
             with _open(request, timeout=active_budget.remaining()) as response:
                 raw = response.read(8_000_001)

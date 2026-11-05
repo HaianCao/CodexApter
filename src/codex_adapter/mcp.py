@@ -35,11 +35,17 @@ def load_servers(value: str | None) -> dict:
             names = server.get("env_vars", [])
             if not isinstance(args, list) or len(args) > 128 or any(not isinstance(arg, str) or "\0" in arg for arg in args):
                 raise ValueError
-            if not isinstance(names, list) or len(names) > 64 or any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) for key in names):
+            if (
+                not isinstance(names, list)
+                or len(names) > 64
+                or any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) for key in names)
+            ):
                 raise ValueError
         return servers
     except (OSError, ValueError, TypeError, RecursionError, RuntimeError):
-        raise ValueError("Invalid session MCP config: use mcpServers with absolute executable command, args and optional env_vars names (maximum 64 KiB). Inline env values and remote URLs are not supported.") from None
+        raise ValueError(
+            "Invalid session MCP config: use mcpServers with absolute executable command, args and optional env_vars names (maximum 64 KiB). Inline env values and remote URLs are not supported."
+        ) from None
 
 
 def codex_overrides(servers: dict) -> list[str]:

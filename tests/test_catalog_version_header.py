@@ -93,12 +93,12 @@ def test_selected_protocol_version_and_auth_reach_every_catalog_page(tmp_path, m
 
 def test_codex_messages_cache_rejects_missing_or_changed_version_policy(tmp_path, monkeypatch):
     config = configuration.Config(path=tmp_path / "config.toml")
-    provider = configuration.Provider("fixture", "Fixture", "https://example.invalid/v1",
-                                      protocol="messages", execution_mode="gateway")
+    provider = configuration.Provider("fixture", "Fixture", "https://example.invalid/v1", protocol="messages", execution_mode="gateway")
     monkeypatch.setattr(catalog, "resolve_token", lambda *a, **kw: "synthetic-key")
     current = catalog._identity(provider, config, token="synthetic-key")
     old = {key: value for key, value in current.items() if key != "anthropic_version"}
     cache = tmp_path / "cache.json"
+
     def save(identity):
         catalog.store_catalog(provider.id, {"identity": identity, "models": ["m"], "fetched_at": time.time()}, cache)
 

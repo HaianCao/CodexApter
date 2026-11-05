@@ -13,7 +13,9 @@ from codex_adapter.launcher import _gateway, build_invocation
 from codex_adapter.web import public_config
 
 
-@pytest.mark.parametrize("protocol,policy,public", [("chat", "provider_default", True), ("messages", "disabled", False), ("responses", "provider_default", False)])
+@pytest.mark.parametrize(
+    "protocol,policy,public", [("chat", "provider_default", True), ("messages", "disabled", False), ("responses", "provider_default", False)]
+)
 def test_auto_reasoning_uses_the_route_without_mutating_provider(tmp_path, monkeypatch, protocol, policy, public):
     pytest.importorskip("protoverta.automatic_reasoning")
     provider = Provider("demo", "Demo", "https://example.test/v1", protocol=protocol, execution_mode="gateway", upstream_reasoning="auto")
@@ -49,6 +51,9 @@ class ReasoningPolicyTests(unittest.TestCase):
         core.Protocol = types.SimpleNamespace(CHAT="chat", MESSAGES="messages", RESPONSES="responses")
         server = types.ModuleType("protoverta.server")
         server.GatewayConfig, server.gateway_session = gateway_config, Mock()
-        with patch.dict(sys.modules, {"protoverta.core": core, "protoverta.server": server}), patch("codex_adapter.launcher.resolve_token", return_value="fake"):
+        with (
+            patch.dict(sys.modules, {"protoverta.core": core, "protoverta.server": server}),
+            patch("codex_adapter.launcher.resolve_token", return_value="fake"),
+        ):
             _gateway(Config(), provider)
         self.assertEqual(gateway_config.call_args.kwargs["upstream_reasoning"], "openrouter_disabled")

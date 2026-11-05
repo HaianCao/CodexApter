@@ -61,6 +61,8 @@ jobs:
           path: test-results.xml
       - name: Lint
         run: python -m ruff check src tests scripts
+      - name: Formatting
+        run: python -m ruff format --check src tests scripts
       - name: Build wheel and verify bundled frontend assets
         shell: pwsh
         run: |

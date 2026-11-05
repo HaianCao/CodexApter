@@ -19,16 +19,12 @@ class CliTests(unittest.TestCase):
 
     def test_doctor_returns_nonzero_for_failed_check(self):
         config = self._config()
-        with patch("codex_adapter.cli.load", return_value=config), patch(
-            "codex_adapter.cli.doctor", return_value=[("Responses", "FAIL: HTTP 404")]
-        ):
+        with patch("codex_adapter.cli.load", return_value=config), patch("codex_adapter.cli.doctor", return_value=[("Responses", "FAIL: HTTP 404")]):
             self.assertEqual(main(["doctor", "-p", "demo", "-m", "test-model"]), 1)
 
     def test_doctor_returns_zero_for_warnings_without_failure(self):
         config = self._config()
-        with patch("codex_adapter.cli.load", return_value=config), patch(
-            "codex_adapter.cli.doctor", return_value=[("Model discovery", "WARN: unavailable")]
-        ):
+        with patch("codex_adapter.cli.load", return_value=config), patch("codex_adapter.cli.doctor", return_value=[("Model discovery", "WARN: unavailable")]):
             self.assertEqual(main(["doctor", "-p", "demo", "-m", "test-model"]), 0)
 
 

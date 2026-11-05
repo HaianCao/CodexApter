@@ -59,7 +59,9 @@ def _migrate_legacy_config(target: Path) -> Path:
         migrated_env = True
     elif old_env.is_file() and new_env.is_file():
         try:
-            existing = {line.split("=", 1)[0].strip() for line in new_env.read_text(encoding="utf-8").splitlines() if "=" in line and not line.lstrip().startswith("#")}
+            existing = {
+                line.split("=", 1)[0].strip() for line in new_env.read_text(encoding="utf-8").splitlines() if "=" in line and not line.lstrip().startswith("#")
+            }
             old_lines = old_env.read_text(encoding="utf-8").splitlines()
             additions = [line for line in old_lines if "=" in line and not line.lstrip().startswith("#") and line.split("=", 1)[0].strip() not in existing]
             if additions:
@@ -361,7 +363,9 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
             enabled=_boolean(discovery_raw.get("enabled", False), f"providers.{name}.model_discovery.enabled"),
             path=_string(discovery_raw.get("path", "/models"), f"providers.{name}.model_discovery.path", required=True),
             method=_string(discovery_raw.get("method", "GET"), f"providers.{name}.model_discovery.method", required=True).upper(),
-            response_format=_string(discovery_raw.get("response_format", "openai_models_list"), f"providers.{name}.model_discovery.response_format", required=True),
+            response_format=_string(
+                discovery_raw.get("response_format", "openai_models_list"), f"providers.{name}.model_discovery.response_format", required=True
+            ),
             cache_ttl_seconds=_positive_integer(discovery_raw.get("cache_ttl_seconds", 3600), f"providers.{name}.model_discovery.cache_ttl_seconds"),
         )
         if discovery.method != "GET" or discovery.response_format != "openai_models_list" or not discovery.path.startswith("/") or "://" in discovery.path:
@@ -369,13 +373,33 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
         gateway_max_output_tokens = _positive_integer(item.get("gateway_max_output_tokens", 4096), f"providers.{name}.gateway_max_output_tokens")
         upstream_reasoning = item.get("upstream_reasoning", "auto")
-        if upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (mode != "gateway" and upstream_reasoning not in ("auto", "provider_default")):
+        if upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (
+            mode != "gateway" and upstream_reasoning not in ("auto", "provider_default")
+        ):
             raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
         system_models = validate_system_models(item.get("messages_system_models", []), protocol, mode)
-        capabilities_file, require_verified = validate_capability_settings(item.get("capabilities_file", ""), item.get("require_verified_capabilities", False), mode)
+        capabilities_file, require_verified = validate_capability_settings(
+            item.get("capabilities_file", ""), item.get("require_verified_capabilities", False), mode
+        )
         public_reasoning = validate_public_reasoning(item.get("public_reasoning", False), protocol, mode)
-        providers[name] = Provider(name, display_name, base_url, protocol, mode, secret_ref, _string(item.get("default_model"), f"providers.{name}.default_model"), discovery, gateway_max_output_tokens, upstream_reasoning, system_models, capabilities_file, require_verified, public_reasoning)
+        providers[name] = Provider(
+            name,
+            display_name,
+            base_url,
+            protocol,
+            mode,
+            secret_ref,
+            _string(item.get("default_model"), f"providers.{name}.default_model"),
+            discovery,
+            gateway_max_output_tokens,
+            upstream_reasoning,
+            system_models,
+            capabilities_file,
+            require_verified,
+            public_reasoning,
+        )
         from .gateway_options import validate_gateway_limits
+
         providers[name].gateway_limits = validate_gateway_limits(item.get("gateway_limits", {}), mode)
         # Preserve old Messages configurations which previously used x-api-key.
         providers[name].auth_mode = validate_auth_mode(item.get("auth_mode", "api_key" if protocol == "messages" else "bearer"), mode)
@@ -394,7 +418,12 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         if provider not in providers:
             raise ConfigError(f"models.{name} references missing provider '{provider}'.")
         alias_reasoning = item.get("reasoning_effort")
-        models[name] = ModelAlias(name, provider, _string(item.get("model_id"), f"models.{name}.model_id", True), _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None)
+        models[name] = ModelAlias(
+            name,
+            provider,
+            _string(item.get("model_id"), f"models.{name}.model_id", True),
+            _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None,
+        )
     configured_env_file = _string(raw.get("env_file"), "env_file")
     config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None)
     validate_secret_names(config)
@@ -415,7 +444,9 @@ def validate_secret_names(config: Config) -> None:
             continue
         normalized = ref.env_var.casefold()
         if normalized in owners:
-            raise ConfigError(f"Secret references '{owners[normalized]}' and '{name}' use the same environment variable. Use one shared reference or distinct variable names.")
+            raise ConfigError(
+                f"Secret references '{owners[normalized]}' and '{name}' use the same environment variable. Use one shared reference or distinct variable names."
+            )
         owners[normalized] = name
 
 
@@ -425,7 +456,12 @@ def save(config: Config, path: Path | None = None) -> Path:
     lines = ["schema_version = 1", "", "[defaults]"]
     if config.env_file:
         lines.insert(1, f"env_file = {_quote(str(config.env_file))}")
-    for key, value in (("provider", config.defaults.provider), ("model", config.defaults.model), ("reasoning_effort", config.defaults.reasoning_effort), ("execution_mode", config.defaults.execution_mode)):
+    for key, value in (
+        ("provider", config.defaults.provider),
+        ("model", config.defaults.model),
+        ("reasoning_effort", config.defaults.reasoning_effort),
+        ("execution_mode", config.defaults.execution_mode),
+    ):
         if value:
             lines.append(f"{key} = {_quote(value)}")
     for name, secret in sorted(config.secrets.items()):
@@ -438,15 +474,29 @@ def save(config: Config, path: Path | None = None) -> Path:
             validate_gateway_limits,
             validate_gateway_runtime,
         )
+
         limits = validate_gateway_limits(provider.gateway_limits, provider.execution_mode)
         runtime = validate_gateway_runtime(provider.gateway_runtime, provider.execution_mode)
         auth_mode = validate_auth_mode(provider.auth_mode, provider.execution_mode)
         search_policy = validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
         public_reasoning = validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
-        capabilities_file, require_verified = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
-        if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")):
+        capabilities_file, require_verified = validate_capability_settings(
+            provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode
+        )
+        if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (
+            provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")
+        ):
             raise ConfigError(f"providers.{name}.upstream_reasoning requires a valid policy and gateway mode.")
-        lines.extend(["", f"[providers.{name}]", f"display_name = {_quote(provider.display_name)}", f"base_url = {_quote(provider.base_url)}", f"protocol = {_quote(provider.protocol)}", f"execution_mode = {_quote(provider.execution_mode)}"])
+        lines.extend(
+            [
+                "",
+                f"[providers.{name}]",
+                f"display_name = {_quote(provider.display_name)}",
+                f"base_url = {_quote(provider.base_url)}",
+                f"protocol = {_quote(provider.protocol)}",
+                f"execution_mode = {_quote(provider.execution_mode)}",
+            ]
+        )
         if provider.execution_mode == "gateway":
             lines.append(f"gateway_max_output_tokens = {provider.gateway_max_output_tokens}")
         lines.append(f"auth_mode = {_quote(auth_mode)}")
@@ -474,7 +524,17 @@ def save(config: Config, path: Path | None = None) -> Path:
         if provider.default_model:
             lines.append(f"default_model = {_quote(provider.default_model)}")
         d = provider.discovery
-        lines.extend(["", f"[providers.{name}.model_discovery]", f"enabled = {str(d.enabled).lower()}", f"path = {_quote(d.path)}", f"method = {_quote(d.method)}", f"response_format = {_quote(d.response_format)}", f"cache_ttl_seconds = {d.cache_ttl_seconds}"])
+        lines.extend(
+            [
+                "",
+                f"[providers.{name}.model_discovery]",
+                f"enabled = {str(d.enabled).lower()}",
+                f"path = {_quote(d.path)}",
+                f"method = {_quote(d.method)}",
+                f"response_format = {_quote(d.response_format)}",
+                f"cache_ttl_seconds = {d.cache_ttl_seconds}",
+            ]
+        )
     for name, alias in sorted(config.models.items()):
         lines.extend(["", f"[models.{name}]", f"provider = {_quote(alias.provider)}", f"model_id = {_quote(alias.model_id)}"])
         if alias.reasoning_effort:
@@ -483,7 +543,9 @@ def save(config: Config, path: Path | None = None) -> Path:
     content = "\n".join(lines) + "\n"
     temporary: str | None = None
     try:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", newline="\n", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False
+        ) as handle:
             temporary = handle.name
             handle.write(content)
             handle.flush()

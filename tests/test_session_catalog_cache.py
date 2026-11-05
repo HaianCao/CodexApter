@@ -13,8 +13,12 @@ def test_cache_enrichment_is_read_only_and_never_adds_model_ids(tmp_path, monkey
     monkeypatch.setenv("CODEX_CA_CACHE", str(path))
     provider = Provider("p", "P", "https://fixture.test/v1")
     config = Config(providers={"p": provider}, path=tmp_path / "config.toml")
-    entry = {"identity": _identity(provider, config, token="synthetic"), "fetched_at": time.time(),
-             "models": ["a", "b"], "model_info": [{"id": "a", "display_name": "Friendly"}, {"id": "b", "display_name": "Other"}]}
+    entry = {
+        "identity": _identity(provider, config, token="synthetic"),
+        "fetched_at": time.time(),
+        "models": ["a", "b"],
+        "model_info": [{"id": "a", "display_name": "Friendly"}, {"id": "b", "display_name": "Other"}],
+    }
     if change == "stale":
         entry["fetched_at"] = 0
     if change == "identity":

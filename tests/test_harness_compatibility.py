@@ -18,6 +18,7 @@ def test_legacy_observed_policy_stays_conservative(monkeypatch):
 def test_native_route_does_not_probe_harness_version(monkeypatch):
     from codex_adapter import launcher
     from codex_adapter.config import Config, Provider, SecretReference
+
     provider = Provider("fixture", "Fixture", "https://example.invalid/v1", auth_secret_ref="main")
     config = Config(providers={"fixture": provider}, secrets={"main": SecretReference("main", env_var="FIXTURE_TOKEN")})
     monkeypatch.setattr(launcher.shutil, "which", lambda _: "fixture.exe")
@@ -36,8 +37,7 @@ def reset_probe_cache():
 
 def test_parse_exact_release_and_reject_ambiguous_output():
     assert harness.parse_version(b"codex-cli 0.166.0\r\n") == (0, 166, 0)
-    for raw in (b"", b"1.2", b"not-a-cli 1.2.3", b"codex-cli 0.166.0-dev", b"x" * 257,
-                b"codex-cli 0.166.0\ncodex-cli 0.166.0", b"\xff"):
+    for raw in (b"", b"1.2", b"not-a-cli 1.2.3", b"codex-cli 0.166.0-dev", b"x" * 257, b"codex-cli 0.166.0\ncodex-cli 0.166.0", b"\xff"):
         assert harness.parse_version(raw) is None
 
 
@@ -65,11 +65,14 @@ def test_probe_uses_isolated_profile_without_credentials(tmp_path, monkeypatch):
 @pytest.mark.parametrize("mode", ["nonzero", "oversized", "malformed"])
 def test_invalid_version_is_unknown(tmp_path, mode):
     script = tmp_path / "fixture.py"
-    script.write_text({
-        "nonzero": "print('codex-cli 0.166.0'); raise SystemExit(1)",
-        "oversized": "print('x' * 4096)",
-        "malformed": "print('private diagnostic text')",
-    }[mode], encoding="utf-8")
+    script.write_text(
+        {
+            "nonzero": "print('codex-cli 0.166.0'); raise SystemExit(1)",
+            "oversized": "print('x' * 4096)",
+            "malformed": "print('private diagnostic text')",
+        }[mode],
+        encoding="utf-8",
+    )
     assert harness.detect_version([sys.executable, str(script)]) is None
 
 
@@ -78,6 +81,7 @@ def test_failed_or_timed_out_probe_returns_unknown(monkeypatch, error):
     def fail(*args, **kwargs):
         assert kwargs["timeout"] == 3
         raise error
+
     monkeypatch.setattr(harness.subprocess, "run", fail)
     assert harness.detect_version(["nonexistent-fixture"]) is None
 

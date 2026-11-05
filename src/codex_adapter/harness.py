@@ -46,9 +46,9 @@ def _probe(prefix: tuple[str, ...], identity: tuple) -> tuple[int, int, int] | N
             # A regular file avoids pipe deadlocks; inspect at most 257 bytes.
             # The trusted installed CLI owns its version command implementation.
             with (root / "version").open("w+b") as output:
-                result = subprocess.run([*prefix, "--version"], env=env, cwd=root,
-                                        stdin=subprocess.DEVNULL, stdout=output,
-                                        stderr=subprocess.DEVNULL, timeout=3, check=False)
+                result = subprocess.run(
+                    [*prefix, "--version"], env=env, cwd=root, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL, timeout=3, check=False
+                )
                 output.seek(0)
                 return parse_version(output.read(257)) if result.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
@@ -57,9 +57,13 @@ def _probe(prefix: tuple[str, ...], identity: tuple) -> tuple[int, int, int] | N
 
 def cross_protocol_overrides(prefix: list[str]) -> list[str]:
     version = detect_version(prefix)
-    settings = ['model_reasoning_summary="none"', 'features.multi_agent=false', 'web_search="disabled"']
+    settings = ['model_reasoning_summary="none"', "features.multi_agent=false", 'web_search="disabled"']
     if version == (0, 166, 0):
         settings.append("agents.enabled=false")
     elif version != (0, 164, 0):
-        warnings.warn("Codex CLI version is not verified for translated routes; retaining conservative compatibility settings. Subagents remain unverified.", RuntimeWarning, stacklevel=2)
+        warnings.warn(
+            "Codex CLI version is not verified for translated routes; retaining conservative compatibility settings. Subagents remain unverified.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     return settings
