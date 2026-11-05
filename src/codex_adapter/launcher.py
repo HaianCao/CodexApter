@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import secrets
 import shutil
@@ -26,6 +25,7 @@ from .harness import cross_protocol_overrides
 from .mcp import codex_overrides, load_servers
 from .model_catalog import catalog_override
 from .subagents import subagent_overrides
+from .toml_text import toml_value
 
 
 def _bypass_loopback_proxy(env: dict[str, str]) -> None:
@@ -80,14 +80,14 @@ def build_invocation(config: Config, provider: Provider, model: str, reasoning: 
     # Codex's default ChatGPT/OpenAI provider. Config keys follow the official
     # Codex custom-provider schema; argv is passed as a list, never via a shell.
     overrides = [
-        f'model_provider={json.dumps(provider.id)}',
-        f'model_providers.{provider.id}.name={json.dumps(provider.display_name)}',
-        f'model_providers.{provider.id}.base_url={json.dumps(base_url)}',
-        f'model_providers.{provider.id}.env_key={json.dumps(env_name)}',
+        f'model_provider={toml_value(provider.id, ensure_ascii=True)}',
+        f'model_providers.{provider.id}.name={toml_value(provider.display_name, ensure_ascii=True)}',
+        f'model_providers.{provider.id}.base_url={toml_value(base_url, ensure_ascii=True)}',
+        f'model_providers.{provider.id}.env_key={toml_value(env_name, ensure_ascii=True)}',
         f'model_providers.{provider.id}.wire_api="responses"',
         f'model_providers.{provider.id}.requires_openai_auth=false',
         f'model_providers.{provider.id}.supports_websockets=false',
-        f'model_reasoning_effort={json.dumps(reasoning)}',
+        f'model_reasoning_effort={toml_value(reasoning, ensure_ascii=True)}',
     ]
     overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model, prefix))
     if provider.execution_mode == "gateway":

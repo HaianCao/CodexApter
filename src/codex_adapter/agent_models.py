@@ -1,9 +1,8 @@
 """Session-only model defaults; never enables Codex agent tools."""
 
-import json
-
 from .errors import ConfigError, LaunchError
 from .harness import detect_version
+from .toml_text import toml_value
 
 
 def _model(value):
@@ -46,9 +45,9 @@ def agent_overrides(prefix, options, model, effort):
     requested_effort = effort if requested_effort == "inherit" else requested_effort
     if requested_effort not in ("low", "medium", "high"):
         raise LaunchError("Choose low, medium or high effort for the agent model.")
-    return [f"agents.default_subagent_model={json.dumps(selected, ensure_ascii=False)}",
-            f"agents.default_subagent_reasoning_effort={json.dumps(requested_effort)}"]
+    return [f"agents.default_subagent_model={toml_value(selected)}",
+            f"agents.default_subagent_reasoning_effort={toml_value(requested_effort, ensure_ascii=True)}"]
 
 
 def agent_models_toml(options):
-    return "{ " + ", ".join(f"{key} = {json.dumps(value, ensure_ascii=False)}" for key, value in sorted(validate_agent_models(options).items())) + " }"
+    return "{ " + ", ".join(f"{key} = {toml_value(value)}" for key, value in sorted(validate_agent_models(options).items())) + " }"

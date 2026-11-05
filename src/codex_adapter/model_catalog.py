@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .errors import LaunchError
+from .toml_text import toml_value
 
 
 def _unique_object(pairs):
@@ -97,4 +98,4 @@ def catalog_override(value: str | None, model: str, prefix=None) -> list[str]:
             validate_native_entry(entry)
     except (OSError, ValueError, KeyError, TypeError, RecursionError):
         raise LaunchError("Custom catalog must contain complete, valid Codex 0.166.0 ModelInfo entries; unknown metadata is not filled from another model.") from None
-    return [f"model_catalog_json={json.dumps(str(path))}"]
+    return [f"model_catalog_json={toml_value(str(path), ensure_ascii=True)}"]

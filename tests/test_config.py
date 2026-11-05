@@ -243,5 +243,23 @@ base_url = "https://example.test/v1"
             save(config, path)
             self.assertEqual(load(path).providers["demo"].display_name, label)
 
+    def test_delete_character_stays_loadable_in_config_and_cli_overrides(self):
+        # JSON leaves U+007F raw, which TOML forbids in basic strings.
+        import tomllib
+
+        from codex_adapter.toml_text import toml_value
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            label = "Demo\x7fprovider"
+            config = Config(providers={"demo": Provider("demo", label, "https://example.test/v1", default_model="model\x7fid")})
+            save(config, path)
+            self.assertNotIn("\x7f", path.read_text(encoding="utf-8"))
+            loaded = load(path).providers["demo"]
+            self.assertEqual((loaded.display_name, loaded.default_model), (label, "model\x7fid"))
+        for ensure_ascii in (False, True):
+            self.assertEqual(tomllib.loads("value = " + toml_value(label, ensure_ascii=ensure_ascii))["value"], label)
+
+
 if __name__ == "__main__":
     unittest.main()

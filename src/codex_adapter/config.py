@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -12,6 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .errors import ConfigError
+from .toml_text import toml_value
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _PROTOCOLS = {"responses", "chat_completions", "anthropic_messages"}
@@ -70,7 +70,7 @@ def _migrate_legacy_config(target: Path) -> Path:
         raw = tomllib.loads(target.read_text(encoding="utf-8"))
         if raw.get("env_file") and Path(raw["env_file"]).expanduser() == old_env:
             content = target.read_text(encoding="utf-8")
-            new_line = f"env_file = {json.dumps(str(new_env), ensure_ascii=False)}"
+            new_line = f"env_file = {toml_value(str(new_env))}"
             target.write_text(re.sub(r"(?m)^env_file\s*=.*$", lambda _match: new_line, content, count=1), encoding="utf-8")
     except (OSError, tomllib.TOMLDecodeError, TypeError):
         pass
@@ -393,8 +393,7 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
 
 
 def _quote(value: str) -> str:
-    # JSON string escapes are a compatible subset of TOML basic-string escapes.
-    return json.dumps(value, ensure_ascii=False)
+    return toml_value(value)
 
 
 def validate_secret_names(config: Config) -> None:
@@ -458,7 +457,7 @@ def save(config: Config, path: Path | None = None) -> Path:
             lines.extend([f"capabilities_file = {_quote(capabilities_file)}", f"require_verified_capabilities = {str(require_verified).lower()}"])
         system_models = validate_system_models(provider.messages_system_models, provider.protocol, provider.execution_mode)
         if system_models:
-            lines.append(f"messages_system_models = {json.dumps(system_models, ensure_ascii=False)}")
+            lines.append(f"messages_system_models = {toml_value(system_models)}")
         if provider.auth_secret_ref:
             lines.append(f"auth_secret_ref = {_quote(provider.auth_secret_ref)}")
         if provider.default_model:
