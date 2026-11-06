@@ -77,6 +77,8 @@ An optional **Model context window** per provider is passed to Codex as
 window. Messages providers default to a 16384-token output limit (previously
 4096, which truncated long edits).
 
+Tested providers (OpenRouter, NVIDIA NIM, TokenHarbor, AgentRouter), their known limits and recommended settings: [provider compatibility](https://github.com/HaianCao/Protoverta/blob/main/docs/compatibility/providers.md).
+
 This checkout prepares gateway preview **0.2.0a2** with Protoverta **0.3.0a8**.
 Until those snapshots are published, use the local installer with
 `-ProtovertaWheel PATH_TO_A8_WHEEL`; the public a6 wheel lacks the new runtime

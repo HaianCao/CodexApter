@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 from .agent_models import agent_overrides
-from .command import command_prefix
+from .command import command_prefix, foreground_child
 from .config import (
     Config,
     Provider,
@@ -244,8 +244,10 @@ def launch(config: Config, provider: Provider, model: str, reasoning: str, extra
             _verify_capabilities(gateway, model, reasoning)
             with session_options(config.path or config_path(), provider) as observer_options, gateway_session(gateway, **observer_options) as origin:
                 argv, env = build_invocation(config, provider, model, reasoning, extra, gateway_url=origin, gateway_token=gateway.inbound_token)
-                return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
+                with foreground_child():
+                    return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
         argv, env = build_invocation(config, provider, model, reasoning, extra)
-        return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
+        with foreground_child():
+            return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
     except OSError as exc:
         raise LaunchError(f"Could not start Codex: {exc}") from exc
