@@ -56,3 +56,13 @@ class ReasoningPolicyTests(unittest.TestCase):
         ):
             _gateway(Config(), provider)
         self.assertEqual(gateway_config.call_args.kwargs["upstream_reasoning"], "openrouter_disabled")
+
+
+def test_auto_reasoning_falls_back_on_cores_without_the_policy_module(monkeypatch):
+    # A launcher update can meet an older installed core (upgrade gate: a6).
+    import sys
+
+    from codex_adapter import launcher
+
+    monkeypatch.setitem(sys.modules, "protoverta.automatic_reasoning", None)
+    assert launcher._automatic_reasoning(None, "https://example.test/v1") == ("provider_default", False, None)

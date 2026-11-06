@@ -122,6 +122,26 @@ def build_invocation(
     return argv, env
 
 
+def _automatic_reasoning(upstream, base_url: str) -> tuple[str, bool, str | None]:
+    """Resolve ``auto`` with whatever the installed core supports.
+
+    Returns (upstream_reasoning, public_reasoning, reasoning_output or None).
+    Older cores without the route policy keep their own behaviour; a core
+    predating automatic reasoning keeps the provider default unchanged.
+    """
+    try:
+        from protoverta.automatic_reasoning import automatic_route_reasoning
+    except ImportError:
+        try:
+            from protoverta.automatic_reasoning import automatic_reasoning
+        except ImportError:
+            return "provider_default", False, None
+        policy, public_text = automatic_reasoning("responses", upstream, base_url)
+        return policy, public_text, None
+    policy, public_text, output = automatic_route_reasoning("responses", upstream.value)
+    return policy, public_text, None if output == "reject" else output
+
+
 def _gateway(config: Config, provider: Provider, model: str | None = None):
     try:
         from protoverta.core import Protocol
@@ -158,16 +178,9 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
             registry_options["public_reasoning"] = True
         reasoning_policy = provider.upstream_reasoning
         if reasoning_policy == "auto":
-            try:
-                from protoverta.automatic_reasoning import automatic_route_reasoning
-            except ImportError:  # Older pinned core: keep its documented behaviour.
-                from protoverta.automatic_reasoning import automatic_reasoning
-
-                reasoning_policy, public_text = automatic_reasoning("responses", upstream, provider.base_url)
-            else:
-                reasoning_policy, public_text, reasoning_output = automatic_route_reasoning("responses", upstream.value)
-                if reasoning_output != "reject":
-                    registry_options["reasoning_output"] = reasoning_output
+            reasoning_policy, public_text, reasoning_output = _automatic_reasoning(upstream, provider.base_url)
+            if reasoning_output is not None:
+                registry_options["reasoning_output"] = reasoning_output
             registry_options["public_reasoning"] = public_text
         capabilities_file, required = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
         if capabilities_file:
