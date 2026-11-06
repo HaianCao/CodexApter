@@ -114,7 +114,7 @@ class GatewayLaunchTests(unittest.TestCase):
                 assert policy.pop("model_snapshot") == (base_url, upstream, (("model-id", "model-id"),))
                 assert policy == {
                     "client_profile": "codex",
-                    "default_max_output_tokens": 4096,
+                    "default_max_output_tokens": 16384,
                     "upstream_reasoning": "provider_default",
                     "namespace_tools": "flatten",
                     "messages_system_models": (),

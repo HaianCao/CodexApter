@@ -126,6 +126,20 @@ class Discovery:
     cache_ttl_seconds: int = 3600
 
 
+# Messages requires an explicit output cap; 4096 truncated long code edits.
+DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 16384
+
+
+def validate_model_limits(value: Any) -> dict:
+    """Codex session override for a provider model's real context window."""
+    if not isinstance(value, dict) or set(value) - {"context_window"}:
+        raise ConfigError("model_limits accepts context_window only.")
+    window = value.get("context_window")
+    if window is not None and (type(window) is not int or not 1 <= window <= 100_000_000):
+        raise ConfigError("model_limits.context_window must be a positive whole token count.")
+    return dict(value)
+
+
 @dataclass
 class Provider:
     id: str
@@ -136,7 +150,7 @@ class Provider:
     auth_secret_ref: str | None = None
     default_model: str | None = None
     discovery: Discovery = field(default_factory=Discovery)
-    gateway_max_output_tokens: int = 4096
+    gateway_max_output_tokens: int = DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS
     upstream_reasoning: str = "provider_default"
     messages_system_models: list[str] = field(default_factory=list)
     capabilities_file: str = ""
@@ -147,6 +161,7 @@ class Provider:
     client_tool_search: str = "reject"
     gateway_runtime: dict = field(default_factory=dict)
     agent_models: dict = field(default_factory=dict)
+    model_limits: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.protocol = normalize_protocol(self.protocol)
@@ -371,7 +386,9 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         if discovery.method != "GET" or discovery.response_format != "openai_models_list" or not discovery.path.startswith("/") or "://" in discovery.path:
             raise ConfigError(f"providers.{name}.model_discovery only permits a relative GET path.")
         display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
-        gateway_max_output_tokens = _positive_integer(item.get("gateway_max_output_tokens", 4096), f"providers.{name}.gateway_max_output_tokens")
+        gateway_max_output_tokens = _positive_integer(
+            item.get("gateway_max_output_tokens", DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS), f"providers.{name}.gateway_max_output_tokens"
+        )
         upstream_reasoning = item.get("upstream_reasoning", "auto")
         if upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (
             mode != "gateway" and upstream_reasoning not in ("auto", "provider_default")
@@ -410,6 +427,7 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         from .agent_models import validate_agent_models
 
         providers[name].agent_models = validate_agent_models(item.get("agent_models", {}))
+        providers[name].model_limits = validate_model_limits(item.get("model_limits", {}))
     models: dict[str, ModelAlias] = {}
     for name, item in models_raw.items():
         _check_id(name, "Model alias")
@@ -514,6 +532,9 @@ def save(config: Config, path: Path | None = None) -> Path:
         agents = validate_agent_models(provider.agent_models)
         if agents:
             lines.append("agent_models = " + agent_models_toml(agents))
+        model_limits = validate_model_limits(provider.model_limits)
+        if model_limits:
+            lines.append("model_limits = { " + ", ".join(f"{key} = {model_limits[key]}" for key in sorted(model_limits)) + " }")
         if capabilities_file:
             lines.extend([f"capabilities_file = {_quote(capabilities_file)}", f"require_verified_capabilities = {str(require_verified).lower()}"])
         system_models = validate_system_models(provider.messages_system_models, provider.protocol, provider.execution_mode)

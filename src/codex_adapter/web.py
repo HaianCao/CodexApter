@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 from .agent_models import validate_agent_models
 from .catalog import _identity, cached_models, fetch_models, store_catalog
 from .config import (
+    DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
     Config,
     Discovery,
     Provider,
@@ -24,6 +25,7 @@ from .config import (
     validate_base_url,
     validate_capability_settings,
     validate_client_tool_search,
+    validate_model_limits,
     validate_public_reasoning,
     validate_system_models,
 )
@@ -59,6 +61,7 @@ def public_config(config: Config) -> dict:
                 "gateway_limits": provider.gateway_limits,
                 "gateway_runtime": provider.gateway_runtime,
                 "agent_models": provider.agent_models,
+                "model_limits": provider.model_limits,
                 "auth_secret_ref": provider.auth_secret_ref,
                 "default_model": provider.default_model,
                 "discovery": vars(provider.discovery),
@@ -342,7 +345,7 @@ def serve(config: Config) -> int:
                     execution_mode = str(body.get("execution_mode", current.execution_mode if current else "direct"))
                     if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
                         raise ConfigError("Chat Completions and Messages providers require gateway mode.")
-                    max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else 4096)
+                    max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS)
                     system_models = validate_system_models(
                         body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode
                     )
@@ -397,6 +400,7 @@ def serve(config: Config) -> int:
                         gateway_limits=validate_gateway_limits(body.get("gateway_limits", current.gateway_limits if current else {}), execution_mode),
                         gateway_runtime=validate_gateway_runtime(body.get("gateway_runtime", current.gateway_runtime if current else {}), execution_mode),
                         agent_models=validate_agent_models(body.get("agent_models", current.agent_models if current else {"policy": "selected"})),
+                        model_limits=validate_model_limits(body.get("model_limits", current.model_limits if current else {})),
                     )
                     api_key = str(body.get("api_key", ""))
                     if "discovery" in body:

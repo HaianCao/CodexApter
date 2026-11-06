@@ -65,10 +65,17 @@ When you choose **Run Codex**, the setup page closes and Codex takes over the te
 ### Optional protocol gateway
 
 Reasoning compatibility is automatic for new providers. The launcher preserves
-portable public reasoning on Chat/Responses routes and requests reasoning off
-where Messages cannot represent it. Manual overrides remain under **Advanced:
-reasoning settings**. Models requiring incompatible reasoning can still be
-unsupported; returned reasoning is never silently hidden.
+portable public reasoning (Chat `reasoning_content` or OpenRouter `reasoning`)
+as Responses `reasoning_text`, keeps each model's default reasoning, and
+explicitly omits reasoning output that cannot be represented (for example
+OpenRouter `reasoning_details` or Messages thinking blocks). Nothing is shown
+as answer text or fabricated. Manual overrides remain under **Advanced:
+reasoning settings**.
+
+An optional **Model context window** per provider is passed to Codex as
+`model_context_window`, so auto-compaction matches the provider model's real
+window. Messages providers default to a 16384-token output limit (previously
+4096, which truncated long edits).
 
 This checkout prepares gateway preview **0.2.0a2** with Protoverta **0.3.0a8**.
 Until those snapshots are published, use the local installer with
