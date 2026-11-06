@@ -95,9 +95,9 @@ def build_invocation(
     ]
     overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model, prefix))
     if provider.execution_mode == "gateway":
-        from .harness import detect_version
+        from .harness import detect_version, schema_supported
 
-        if detect_version(prefix) == (0, 166, 0):
+        if schema_supported(detect_version(prefix)):
             # Use the reviewed local catalog. An inherited remote catalog URL
             # must not receive this session's temporary local credential.
             overrides.append("features.api_key_model_discovery=false")

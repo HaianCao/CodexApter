@@ -1,7 +1,7 @@
 """Session-only model defaults; never enables Codex agent tools."""
 
 from .errors import ConfigError, LaunchError
-from .harness import detect_version
+from .harness import detect_version, require_schema
 from .toml_text import toml_value
 
 
@@ -38,8 +38,7 @@ def agent_overrides(prefix, options, model, effort):
     options = validate_agent_models(options)
     if options.get("policy", "inherit") == "inherit":
         return []
-    if detect_version(prefix) != (0, 166, 0):
-        raise LaunchError("Agent model overrides are verified with Codex 0.166.0 only. Choose Inherit harness settings for another version.")
+    require_schema(detect_version(prefix), "Agent model overrides", LaunchError)
     selected = _model(options.get("default", model))
     requested_effort = options.get("effort", "inherit")
     requested_effort = effort if requested_effort == "inherit" else requested_effort

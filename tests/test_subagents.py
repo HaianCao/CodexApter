@@ -24,10 +24,16 @@ def test_invalid_opt_in_rejected(enabled):
         subagents.subagent_overrides([], enabled, None, "fixture", {})
 
 
-@pytest.mark.parametrize("version", [None, (0, 164, 0), (0, 167, 0)])
-def test_unknown_or_unverified_version_cannot_enable(monkeypatch, version):
+@pytest.mark.parametrize("version", [None, (0, 164, 0), (1, 0, 0)])
+def test_unknown_or_older_version_cannot_enable(monkeypatch, version):
     monkeypatch.setattr(subagents, "detect_version", lambda _: version)
-    with pytest.raises(LaunchError, match="0.166.0"):
+    with pytest.raises(LaunchError, match="0.166.0 or newer"):
+        subagents.subagent_overrides([], "1", None, "fixture", {"policy": "selected"})
+
+
+def test_newer_unverified_version_warns_and_keeps_other_requirements(monkeypatch):
+    monkeypatch.setattr(subagents, "detect_version", lambda _: (0, 168, 0))
+    with pytest.warns(RuntimeWarning, match="0.168.0"), pytest.raises(LaunchError, match="CODEX_CA_MODEL_CATALOG"):
         subagents.subagent_overrides([], "1", None, "fixture", {"policy": "selected"})
 
 

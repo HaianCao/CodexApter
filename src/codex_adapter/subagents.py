@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .agent_models import validate_agent_models
 from .errors import LaunchError
-from .harness import detect_version
+from .harness import detect_version, require_schema
 from .model_catalog import load_catalog
 
 
@@ -13,8 +13,7 @@ def subagent_overrides(prefix, enabled, catalog, model, agent_models):
         raise LaunchError("CODEX_CA_ENABLE_SUBAGENTS accepts 0 or 1 only.")
     if enabled != "1":
         return []
-    if detect_version(prefix) != (0, 166, 0):
-        raise LaunchError("Translated subagent opt-in is verified only with Codex CLI 0.166.0.")
+    require_schema(detect_version(prefix), "Translated subagent opt-in", LaunchError)
     agent_models = validate_agent_models(agent_models)
     if agent_models.get("policy", "inherit") not in {"selected", "custom"}:
         raise LaunchError("Translated subagents require selected or custom agent model policy with explicit model metadata.")

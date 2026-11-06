@@ -166,12 +166,12 @@ External stdio MCP servers can be selected for one launch with
 executable `command`, optional `args`, and `env_vars` names. No global MCP
 registration is changed. Keys belong in the named environment variables.
 An optional `CODEX_CA_MODEL_CATALOG` selects an operator-supplied Codex catalog
-matching Codex CLI **0.166.0** and the exact model ID. Required structure and
+matching the Codex CLI 0.166.0 ModelInfo schema (verified on **0.166.0** and **0.167.0**; newer 0.x releases warn) and the exact model ID. Required structure and
 version are checked; capabilities are not inferred.
 
 The integration preview can opt into one foreground subagent on translated
 routes with `$env:CODEX_CA_ENABLE_SUBAGENTS = '1'` for the current shell.
-This subset requires Codex CLI **0.166.0** and provider `agent_models` policy
+This subset requires Codex CLI **0.166.0** or newer (verified on 0.166.0 and 0.167.0; newer releases warn) and provider `agent_models` policy
 `selected` (same model) or `custom` (explicit child model and low/medium/high
 effort). Every parent/child model needs its own exact entry in
 `CODEX_CA_MODEL_CATALOG` with `supports_search_tool = false` and no code-only

@@ -111,3 +111,23 @@ def test_unknown_version_warns_without_echoing_cli_output_or_enabling_features(m
         settings = harness.cross_protocol_overrides(["fixture"])
     assert "features.multi_agent=false" in settings
     assert not any("=true" in value for value in settings)
+
+
+@pytest.mark.parametrize("version", [(0, 166, 0), (0, 167, 0)])
+def test_verified_versions_keep_schema_settings_silently(monkeypatch, version):
+    monkeypatch.setattr(harness, "detect_version", lambda _: version)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert "agents.enabled=false" in harness.cross_protocol_overrides(["fixture"])
+
+
+def test_newer_version_keeps_schema_settings_with_warning(monkeypatch):
+    monkeypatch.setattr(harness, "detect_version", lambda _: (0, 170, 2))
+    with pytest.warns(RuntimeWarning, match="0.170.2"):
+        assert "agents.enabled=false" in harness.cross_protocol_overrides(["fixture"])
+
+
+@pytest.mark.parametrize("version", [None, (0, 165, 9), (1, 0, 0)])
+def test_require_schema_rejects_unknown_older_or_next_major(version):
+    with pytest.raises(ValueError, match="0.166.0 or newer"):
+        harness.require_schema(version, "Feature", ValueError)

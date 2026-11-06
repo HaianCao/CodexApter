@@ -77,9 +77,15 @@ def test_catalog_version_gate(tmp_path, monkeypatch):
 
     path = tmp_path / "model.json"
     path.write_text(json.dumps({"models": [native_model()]}), encoding="utf-8")
+    for older in (None, (0, 165, 0), (1, 0, 0)):
+        monkeypatch.setattr(harness, "detect_version", lambda _, value=older: value)
+        with pytest.raises(LaunchError, match="0.166.0 or newer"):
+            catalog_override(str(path), "vendor/model", ["codex"])
     monkeypatch.setattr(harness, "detect_version", lambda _: (0, 167, 0))
-    with pytest.raises(LaunchError, match="0.166.0"):
-        catalog_override(str(path), "vendor/model", ["codex"])
+    assert catalog_override(str(path), "vendor/model", ["codex"])
+    monkeypatch.setattr(harness, "detect_version", lambda _: (0, 168, 0))
+    with pytest.warns(RuntimeWarning, match="0.168.0"):
+        assert catalog_override(str(path), "vendor/model", ["codex"])
 
 
 @pytest.mark.parametrize(

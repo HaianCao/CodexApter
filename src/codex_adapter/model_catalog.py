@@ -92,10 +92,9 @@ def catalog_override(value: str | None, model: str, prefix=None) -> list[str]:
         return []
     path, _ = load_catalog(value, model)
     if prefix is not None:
-        from .harness import detect_version
+        from .harness import detect_version, require_schema
 
-        if detect_version(prefix) != (0, 166, 0):
-            raise LaunchError("Custom catalog schema is verified with Codex 0.166.0 only; review the new version before using this override.")
+        require_schema(detect_version(prefix), "Custom model catalog (0.166.0 ModelInfo schema)", LaunchError)
     try:
         with path.open("rb") as source:
             raw = source.read(2 * 1024 * 1024 + 1)
