@@ -96,6 +96,12 @@ def build_invocation(
     ]
     overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model, prefix))
     window = validate_model_limits(provider.model_limits).get("context_window")
+    if window is None:
+        # Not set on the provider: use the selected model's context window as
+        # the provider reports it in its model list (OpenRouter, TokenHarbor).
+        from .catalog import cached_model_limits
+
+        window = cached_model_limits(config, provider, model, token=token).get("context_window_tokens")
     if window is not None:
         # Codex otherwise falls back to generic metadata for unknown model IDs.
         overrides.append(f"model_context_window={window}")

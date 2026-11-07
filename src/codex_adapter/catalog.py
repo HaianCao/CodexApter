@@ -6,6 +6,7 @@ import os
 import time
 import uuid
 from contextlib import nullcontext
+from dataclasses import replace
 from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -111,6 +112,74 @@ def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
     return result
 
 
+# Token limits that providers report in their model lists. These are the
+# provider's own numbers (OpenRouter and TokenHarbor report them; NVIDIA NIM
+# does not); nothing is estimated. The first positive integer found wins.
+_CONTEXT_FIELDS = ("context_window_tokens", "context_window", "context_length", "max_input_tokens", "top_provider.context_length")
+_OUTPUT_FIELDS = ("max_output_tokens", "max_completion_tokens", "top_provider.max_completion_tokens")
+_GATEWAY_CONTEXT_FIELD, _GATEWAY_OUTPUT_FIELD = "context_length", "top_provider.max_completion_tokens"
+_MAX_REPORTED_TOKENS = 2**31 - 1
+
+
+def _reported_number(entry, paths):
+    for path in paths:
+        value = entry
+        for key in path.split("."):
+            value = value.get(key) if isinstance(value, dict) else None
+        if type(value) is int and 0 < value <= _MAX_REPORTED_TOKENS:
+            return value
+    return None
+
+
+def reported_limits(entry) -> dict:
+    """``context_window_tokens`` and ``max_output_tokens`` a model list reports, or ``None``."""
+    return {"context_window_tokens": _reported_number(entry, _CONTEXT_FIELDS), "max_output_tokens": _reported_number(entry, _OUTPUT_FIELDS)}
+
+
+def _present_limits(entry) -> dict:
+    """Only the limits that were reported, so models without them keep their usual shape."""
+    return {key: value for key, value in reported_limits(entry).items() if value is not None}
+
+
+def cached_model_limits(config, provider, model, *, token=_UNSET) -> dict:
+    """Reported limits for ``model`` from this provider's catalog cache, or ``{}``."""
+    try:
+        with cache_path().open("rb") as source:
+            raw = source.read(8 * 1024 * 1024 + 1)
+        if len(raw) > 8 * 1024 * 1024:
+            return {}
+        entry = _decode_json(raw).get("providers", {}).get(provider.id, {})
+        if not isinstance(entry, dict) or entry.get("identity") != _identity(provider, config, token=token):
+            return {}
+        info = entry.get("model_info", [])
+        if not isinstance(info, list) or len(info) > 100000:
+            return {}
+        item = next((value for value in info if isinstance(value, dict) and value.get("id") == model), None)
+        return reported_limits(item) if item else {}
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError, RecursionError):
+        return {}
+
+
+def cached_limits(config, provider, *, token=_UNSET) -> dict:
+    """``{model_id: reported limits}`` for models whose limits the provider reported."""
+    try:
+        entry = _read_cache().get("providers", {}).get(provider.id, {})
+        if not isinstance(entry, dict) or entry.get("identity") != _identity(provider, config, token=token):
+            return {}
+        info = entry.get("model_info", [])
+        if not isinstance(info, list):
+            return {}
+        result = {}
+        for item in info[:100000]:
+            if isinstance(item, dict) and isinstance(item.get("id"), str):
+                limits = reported_limits(item)
+                if any(limits.values()):
+                    result[item["id"]] = limits
+        return result
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError, RecursionError):
+        return {}
+
+
 def _read_cache(path: Path | None = None) -> dict:
     source = path or migrate_legacy_cache()
     try:
@@ -178,7 +247,13 @@ def fetch_models(
             from protoverta.discovery import CatalogPolicy, fetch_catalog
 
             policy_file = provider.gateway_runtime.get("catalog_policy_file")
-            policy = CatalogPolicy(path=provider.discovery.path, timeout=timeout, pagination="after_id" if provider.protocol == "messages" else "none")
+            policy = CatalogPolicy(
+                path=provider.discovery.path,
+                timeout=timeout,
+                pagination="after_id" if provider.protocol == "messages" else "none",
+                context_field=_GATEWAY_CONTEXT_FIELD,
+                output_field=_GATEWAY_OUTPUT_FIELD,
+            )
             if policy_file:
                 path = Path(policy_file).expanduser()
                 if not path.is_absolute():
@@ -192,7 +267,16 @@ def fetch_models(
                     return _open(request, timeout=min(timeout, budget.remaining()))
 
                 options["upstream_open"] = upstream_open
-            info = [item.as_dict() for item in fetch_catalog(provider.base_url, headers, policy, **options)]
+            try:
+                items = fetch_catalog(provider.base_url, headers, policy, **options)
+            except ValueError as exc:
+                # A provider may report limits in another shape; the strict
+                # parser then rejects the page. Limits are optional, so list
+                # the models without them rather than failing discovery.
+                if policy_file or "token limits" not in str(exc):
+                    raise
+                items = fetch_catalog(provider.base_url, headers, replace(policy, context_field=None, output_field=None), **options)
+            info = [item.as_dict() for item in items]
         except ImportError:
             raise DiscoveryError("Gateway discovery requires the matching Protoverta preview.") from None
         except (ValueError, OSError, TypeError):
@@ -227,7 +311,15 @@ def fetch_models(
     models = sorted({item["id"].strip() for item in data if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()})
     if not models:
         raise DiscoveryError("Model discovery returned no usable model IDs.")
+    info = []
+    for item in data:
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip() and len(info) < 10000:
+            limits = _present_limits(item)
+            if limits:
+                info.append({"id": item["id"].strip(), "display_name": item["id"].strip(), **limits})
     entry = {"identity": identity, "fetched_at": time.time(), "models": models}
+    if info:
+        entry["model_info"] = info
     if cache_sink is not None:
         cache_sink(entry)
     else:

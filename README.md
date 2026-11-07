@@ -10,6 +10,7 @@
     <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white">
     <img alt="Windows" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square&logo=windows&logoColor=white">
     <a href="https://github.com/HaianCao/CodexApter/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/HaianCao/CodexApter/ci.yml?branch=main&style=flat-square&label=tests"></a>
+    <a href="https://github.com/HaianCao/Protoverta"><img alt="Gateway: Protoverta" src="https://img.shields.io/badge/gateway-Protoverta-2f6f8f?style=flat-square"></a>
   </p>
   <p><a href="#quick-start">Quick start</a> &middot; <a href="#configure-a-provider">Providers</a> &middot; <a href="#use-codexapter">CLI</a> &middot; <a href="#privacy-and-security">Security</a></p>
 </div>
@@ -27,7 +28,7 @@ CodexApter is a lightweight launcher and configuration studio for the official C
 - Launch Codex in the current terminal, or select a different provider/model for one run.
 - Manage API keys locally without putting them in the provider configuration file.
 
-Responses providers connect directly by default. An opt-in local Protoverta gateway translates supported text, user image inputs and function tools from Chat Completions or Anthropic Messages into Responses; unsupported requests fail explicitly. Model discovery through `GET /models` is optional, and model IDs can be entered manually.
+Responses providers connect directly by default. An opt-in local [Protoverta](https://github.com/HaianCao/Protoverta) gateway translates supported text, user image inputs and function tools from Chat Completions or Anthropic Messages into Responses; unsupported requests fail explicitly. Model discovery through `GET /models` is optional, and model IDs can be entered manually.
 
 ## Quick start
 
@@ -53,7 +54,11 @@ Windows supports native CLI executables and standard npm global or project insta
 
 In the setup page:
 
-1. Select **Add** and enter a provider ID, display name, and API base URL (for example, `https://api.example.com/v1`). Use the API prefix, without `/responses`, `/messages` or `/chat/completions`.
+**Quick start:** select **Add**, pick **OpenRouter**, **NVIDIA NIM**, **TokenHarbor** or **AgentRouter** under *Start from a tested provider*, paste your API key and select **Save provider**. The address, protocol and connection mode are filled in for you; then pick a model and select **Run Codex**.
+
+For any other provider:
+
+1. Select **Add** and enter a display name (the provider ID is derived from it) and API base URL (for example, `https://api.example.com/v1`). Use the API prefix, without `/responses`, `/messages` or `/chat/completions`.
 2. Enter the provider's API key. CodexApter derives the internal secret and environment-variable names from the provider ID.
 3. Select **Refresh models** to query the provider's model catalog, or type a model ID directly.
 4. Choose a reasoning effort and select **Save as default** or **Run Codex**.
@@ -72,17 +77,18 @@ OpenRouter `reasoning_details` or Messages thinking blocks). Nothing is shown
 as answer text or fabricated. Manual overrides remain under **Advanced:
 reasoning settings**.
 
-An optional **Model context window** per provider is passed to Codex as
-`model_context_window`, so auto-compaction matches the provider model's real
-window. Messages providers default to a 16384-token output limit (previously
-4096, which truncated long edits).
+The **model context window** is passed to Codex as `model_context_window`, so
+auto-compaction matches the model's real window. It is taken automatically from
+the selected model's maximum when the provider reports it in its model list
+(OpenRouter and TokenHarbor do; NVIDIA NIM does not); a value you enter under
+**Model limits** on a provider always wins. Messages providers default to a 16384-token output
+limit (previously 4096, which truncated long edits).
 
 Tested providers (OpenRouter, NVIDIA NIM, TokenHarbor, AgentRouter), their known limits and recommended settings: [provider compatibility](https://github.com/HaianCao/Protoverta/blob/main/docs/compatibility/providers.md).
 
-This checkout prepares gateway preview **0.2.0a2** with Protoverta **0.3.0a11**.
-Until those snapshots are published, use the local installer with
-`-ProtovertaWheel PATH_TO_A8_WHEEL`; the public a6 wheel lacks the new runtime
-options. Once the matching preview/core are published, install with:
+This branch is gateway preview **0.2.0a2**, pinned to [Protoverta](https://github.com/HaianCao/Protoverta) **0.3.0a11**.
+The pinned Protoverta release is published, so the gateway preview installs in
+one line:
 
 ```powershell
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/integration/protoverta/scripts/install.ps1"))) -WithGateway -SourceBranch integration/protoverta
@@ -146,8 +152,8 @@ default to Bearer; direct Codex connections use Bearer.
 Optional advanced gateway policies support evidence-scoped provider profile
 files, shared quota databases and bounded HTTP-rejection retries. Leave them
 blank for existing behavior. These options and client tool-search emulation
-require the matching unpublished Protoverta source build, not the older public
-alpha-6 wheel. They do not enable hidden reasoning migration or model fallback.
+require the pinned Protoverta release
+(installed with the gateway preview). They do not enable hidden reasoning migration or model fallback.
 
 ## Privacy and security
 

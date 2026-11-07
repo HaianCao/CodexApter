@@ -258,9 +258,16 @@ def serve(config: Config) -> int:
                     self._json({"error": "Unknown provider"}, HTTPStatus.NOT_FOUND)
                     return
                 models, stale = cached_models(provider, config=config)
-                from .catalog import cached_model_names
+                from .catalog import cached_limits, cached_model_names
 
-                self._json({"models": models, "stale": stale, "model_names": cached_model_names(config, provider, models)})
+                self._json(
+                    {
+                        "models": models,
+                        "stale": stale,
+                        "model_names": cached_model_names(config, provider, models),
+                        "model_limits": cached_limits(config, provider),
+                    }
+                )
                 return
             if parsed.path == "/api/model-status":
                 from .model_selection import model_status
@@ -319,9 +326,16 @@ def serve(config: Config) -> int:
                         raise AdapterError("Provider settings changed during refresh. Refresh models again.")
                     if entries:
                         store_catalog(provider.id, entries[0])
-                from .catalog import cached_model_names
+                from .catalog import cached_limits, cached_model_names
 
-                self._json({"models": models, "stale": False, "model_names": cached_model_names(config, current, models)})
+                self._json(
+                    {
+                        "models": models,
+                        "stale": False,
+                        "model_names": cached_model_names(config, current, models),
+                        "model_limits": cached_limits(config, current),
+                    }
+                )
             finally:
                 with state_lock:
                     refreshes.discard(budget)
