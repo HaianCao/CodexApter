@@ -74,6 +74,22 @@ codex-ca --help
 
 After installation, `codex-ca` is available from any working directory. Re-run the installer command to update CodexApter; your provider settings are retained.
 
+## Automatic retry on provider errors
+
+Some providers fail a request for a while and then work again, for example AgentRouter answering "The requested item was created under a different Azure OpenAI resource". CodexApter starts a small relay on `127.0.0.1` for each session. When the provider answers with an error, cannot be reached, or fails a stream before any output, the relay waits and sends the same request again, so Codex shows the error only after the last attempt. Output that already reached Codex is never repeated. While the relay waits, Codex shows the turn as still working; press Esc to cancel, which also stops the retries.
+
+Defaults: up to **10 retries, 60 seconds apart**; `401` and `403` (key problems) are not retried. Change them in `%APPDATA%\codexapter\config.toml`:
+
+```toml
+[retry]
+enabled = true        # false: Codex talks to the provider directly
+max_retries = 10      # 0-100
+delay_seconds = 60    # 0-3600
+skip_status = [401, 403]
+```
+
+When the retries run out, Codex shows the last error. Codex reconnects by itself a few times after a server error; for 30 seconds after the relay gives up, those reconnects are passed through without waiting, so the error appears within seconds instead of after another full retry cycle each. Each retry is logged with the provider's error message in `%LOCALAPPDATA%\codexapter\retry.log`.
+
 ## Uninstall
 
 In PowerShell, run the uninstaller from GitHub:
@@ -88,7 +104,7 @@ Environment reset clears only `CODEX_CA_CONFIG`, `CODEX_CA_CACHE` and `CODEX_CA_
 
 ## Privacy and security
 
-Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). CodexApter is a local launcher; it does not host a service or proxy your conversations.
+Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. The setup page listens only on your own computer (`127.0.0.1`). CodexApter is a local launcher; it does not host a service. The retry relay listens only on `127.0.0.1`, forwards requests to the configured provider only, adds no credentials and stores no conversation content; its log keeps only request paths and provider error messages.
 
 ## For contributors
 
