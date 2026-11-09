@@ -17,6 +17,11 @@ so nothing is ever repeated or merged. The relay adds no credentials: Codex's
 own ``Authorization`` header is forwarded to the configured provider origin
 only. Retries are logged to ``retry.log`` beside the catalog cache, because
 Codex owns the terminal.
+
+Codex reconnects by itself (up to five times, seconds apart) after a server
+error. For ``GIVE_UP_WINDOW_SECONDS`` after the relay gives up, failed requests
+are passed through without waiting, so those reconnects take seconds instead of
+another full retry cycle each.
 """
 
 from __future__ import annotations
@@ -54,6 +59,7 @@ _HOP_BY_HOP = {
 _PENDING_EVENTS = {"response.created", "response.in_progress", "response.queued"}
 _FAILED_EVENTS = {"error", "response.failed"}
 UPSTREAM_TIMEOUT_SECONDS = 300
+GIVE_UP_WINDOW_SECONDS = 30
 _CHUNK = 65536
 
 
@@ -143,7 +149,11 @@ class RetryRelay(ThreadingHTTPServer):
         self.origin = f"{parts.scheme}://{parts.netloc}"
         self.policy = policy
         self.opener = urllib.request.build_opener()
+        self.gave_up_at: float | None = None
         super().__init__(("127.0.0.1", 0), _Handler)
+
+    def may_retry(self) -> bool:
+        return self.gave_up_at is None or time.monotonic() - self.gave_up_at > GIVE_UP_WINDOW_SECONDS
 
     def base_url(self, upstream: str) -> str:
         return f"http://127.0.0.1:{self.server_port}{urlsplit(upstream).path.rstrip('/')}"
@@ -213,15 +223,17 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             while True:
                 request = urllib.request.Request(url, data=body if self.command != "GET" else None, headers=headers, method=self.command)
-                retryable = attempt < policy.max_retries
+                retryable = attempt < policy.max_retries and self.server.may_retry()
                 try:
                     response = self.server.opener.open(request, timeout=UPSTREAM_TIMEOUT_SECONDS)
                 except urllib.error.HTTPError as error:
                     payload = error.read()
-                    if retryable and error.code not in policy.skip_status:
-                        attempt += 1
-                        self._wait(attempt, f"HTTP {error.code} {_summary(payload)}")
-                        continue
+                    if error.code not in policy.skip_status:
+                        if retryable:
+                            attempt += 1
+                            self._wait(attempt, f"HTTP {error.code} {_summary(payload)}")
+                            continue
+                        self._give_up(f"HTTP {error.code} {_summary(payload)}")
                     self._send(error.code, error.headers, payload)
                     return
                 except (urllib.error.URLError, OSError, http.client.HTTPException) as error:
@@ -229,11 +241,13 @@ class _Handler(BaseHTTPRequestHandler):
                         attempt += 1
                         self._wait(attempt, f"provider unreachable: {error}")
                         continue
+                    self._give_up(f"provider unreachable: {error}")
                     message = json.dumps({"error": {"message": f"Provider unreachable after {attempt} retries: {error}", "type": "codexapter_retry"}}).encode()
                     self._send(502, {"Content-Type": "application/json"}, message)
                     return
                 with response:
                     if "text/event-stream" not in response.headers.get("Content-Type", ""):
+                        self.server.gave_up_at = None
                         self._send(response.status, response.headers, response.read())
                         return
                     try:
@@ -244,6 +258,10 @@ class _Handler(BaseHTTPRequestHandler):
                         attempt += 1
                         self._wait(attempt, reason)
                         continue
+                    if verdict == "ok":
+                        self.server.gave_up_at = None
+                    else:
+                        self._give_up(reason)
                     self._stream(response, prefix)
                     if attempt:
                         _log(f"{self.command} {self.path}: succeeded after {attempt} retries")
@@ -252,6 +270,13 @@ class _Handler(BaseHTTPRequestHandler):
             _log(f"{self.command} {self.path}: Codex cancelled the request; retries stopped")
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
+
+    def _give_up(self, reason: str) -> None:
+        if self.server.may_retry():
+            self.server.gave_up_at = time.monotonic()
+            _log(f"{self.command} {self.path}: gave up after {self.server.policy.max_retries} retries; {reason}")
+        else:
+            _log(f"{self.command} {self.path}: {reason}; passed through (retries ran out moments ago)")
 
     def _send(self, status: int, headers: Any, payload: bytes) -> None:
         self.send_response(status)

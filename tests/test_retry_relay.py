@@ -105,6 +105,20 @@ class RetryRelayTests(unittest.TestCase):
         self.assertEqual(call(self.relay(upstream, max_retries=3)), (400, AZURE))
         self.assertEqual(len(upstream.requests), 4)
 
+    def test_reconnects_right_after_giving_up_are_not_retried_again(self):
+        busy = (503, "application/json", b'{"error":{"message":"no channel"}}')
+        upstream = Upstream(busy, busy, busy, (200, "text/event-stream", OK_STREAM), busy, (200, "text/event-stream", OK_STREAM))
+        url = self.relay(upstream, max_retries=1)
+        self.assertEqual(call(url)[0], 503)  # Two attempts, then gives up.
+        self.assertEqual(call(url)[0], 503)  # Codex's reconnect: passed straight through.
+        self.assertEqual(len(upstream.requests), 3)
+        self.assertEqual(call(url)[0], 200)  # Success ends the pass-through window.
+        self.assertEqual(call(url), (200, OK_STREAM))  # Retried again: 503 then OK.
+        self.assertEqual(len(upstream.requests), 6)
+        log = self.log.read_text(encoding="utf-8")
+        self.assertIn("gave up after 1 retries; HTTP 503 no channel", log)
+        self.assertIn("passed through (retries ran out moments ago)", log)
+
     def test_skipped_status_is_not_retried(self):
         upstream = Upstream((401, "application/json", b'{"error":{"message":"bad key"}}'))
         self.assertEqual(call(self.relay(upstream))[0], 401)

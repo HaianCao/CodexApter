@@ -88,7 +88,7 @@ delay_seconds = 60    # 0-3600
 skip_status = [401, 403]
 ```
 
-Each retry is logged with the provider's error message in `%LOCALAPPDATA%\codexapter\retry.log`.
+When the retries run out, Codex shows the last error. Codex reconnects by itself a few times after a server error; for 30 seconds after the relay gives up, those reconnects are passed through without waiting, so the error appears within seconds instead of after another full retry cycle each. Each retry is logged with the provider's error message in `%LOCALAPPDATA%\codexapter\retry.log`.
 
 ## Uninstall
 
