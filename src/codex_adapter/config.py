@@ -113,6 +113,16 @@ class Defaults:
 
 
 @dataclass
+class Retry:
+    """Provider errors are retried by the local relay before Codex sees them."""
+
+    enabled: bool = True
+    max_retries: int = 10
+    delay_seconds: int = 60
+    skip_status: tuple[int, ...] = (401, 403)
+
+
+@dataclass
 class Discovery:
     enabled: bool = False
     path: str = "/models"
@@ -156,6 +166,7 @@ class Config:
     models: dict[str, ModelAlias] = field(default_factory=dict)
     path: Path | None = None
     env_file: Path | None = None
+    retry: Retry = field(default_factory=Retry)
 
     def resolve(self, provider: str | None, model: str | None, reasoning: str | None) -> tuple[Provider, str, str]:
         requested_provider = provider or self.defaults.provider
@@ -202,6 +213,25 @@ def _positive_integer(value: Any, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigError(f"'{field_name}' must be a positive integer.")
     return value
+
+
+def _bounded_integer(value: Any, field_name: str, low: int, high: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise ConfigError(f"'{field_name}' must be an integer from {low} to {high}.")
+    return value
+
+
+def _retry(value: Any) -> Retry:
+    raw = _table(value, "retry")
+    statuses = raw.get("skip_status", list(Retry.skip_status))
+    if not isinstance(statuses, list):
+        raise ConfigError("'retry.skip_status' must be a list of HTTP status codes.")
+    return Retry(
+        enabled=_boolean(raw.get("enabled", True), "retry.enabled"),
+        max_retries=_bounded_integer(raw.get("max_retries", 10), "retry.max_retries", 0, 100),
+        delay_seconds=_bounded_integer(raw.get("delay_seconds", 60), "retry.delay_seconds", 0, 3600),
+        skip_status=tuple(_bounded_integer(status, "retry.skip_status", 400, 599) for status in statuses),
+    )
 
 
 def _reasoning_effort(value: Any, field_name: str) -> str:
@@ -306,7 +336,7 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         alias_reasoning = item.get("reasoning_effort")
         models[name] = ModelAlias(name, provider, _string(item.get("model_id"), f"models.{name}.model_id", True), _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None)
     configured_env_file = _string(raw.get("env_file"), "env_file")
-    config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None)
+    config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None, _retry(raw.get("retry", {})))
     if defaults.provider and defaults.provider not in providers:
         raise ConfigError(f"defaults.provider references missing provider '{defaults.provider}'.")
     return config
@@ -325,6 +355,8 @@ def save(config: Config, path: Path | None = None) -> Path:
     for key, value in (("provider", config.defaults.provider), ("model", config.defaults.model), ("reasoning_effort", config.defaults.reasoning_effort), ("execution_mode", config.defaults.execution_mode)):
         if value:
             lines.append(f"{key} = {_quote(value)}")
+    retry = config.retry
+    lines.extend(["", "[retry]", f"enabled = {str(retry.enabled).lower()}", f"max_retries = {retry.max_retries}", f"delay_seconds = {retry.delay_seconds}", f"skip_status = [{', '.join(str(status) for status in retry.skip_status)}]"])
     for name, secret in sorted(config.secrets.items()):
         lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
     for name, provider in sorted(config.providers.items()):

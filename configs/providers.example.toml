@@ -6,6 +6,12 @@ model = "deepseek-v4-flash"
 reasoning_effort = "medium"
 execution_mode = "direct"
 
+[retry]
+enabled = true
+max_retries = 10
+delay_seconds = 60
+skip_status = [401, 403]
+
 [providers.agentrouter]
 display_name = "AgentRouter"
 base_url = "https://agentrouter.org/v1"
