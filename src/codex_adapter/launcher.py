@@ -11,7 +11,9 @@ from .command import command_prefix, foreground_child
 from .config import (
     Config,
     Provider,
+    cache_path,
     config_path,
+    retry_policy,
     validate_auth_mode,
     validate_base_url,
     validate_capability_settings,
@@ -36,8 +38,22 @@ def _bypass_loopback_proxy(env: dict[str, str]) -> None:
     env.update(NO_PROXY=merged, no_proxy=merged)
 
 
+def _retry_idle_ms(policy) -> int:
+    """Codex's stream idle timeout must outlast the retry waits."""
+    waits = min(policy.max_total_seconds, policy.max_retries * policy.delay_seconds * (1 + policy.jitter))
+    return int((waits + 300) * 1000)
+
+
 def build_invocation(
-    config: Config, provider: Provider, model: str, reasoning: str, extra: list[str], *, gateway_url: str | None = None, gateway_token: str | None = None
+    config: Config,
+    provider: Provider,
+    model: str,
+    reasoning: str,
+    extra: list[str],
+    *,
+    gateway_url: str | None = None,
+    gateway_token: str | None = None,
+    relay_url: str | None = None,
 ) -> tuple[list[str], dict[str, str]]:
     configured_base_url = validate_base_url(provider.base_url)
     validate_auth_mode(provider.auth_mode, provider.execution_mode)
@@ -71,7 +87,7 @@ def build_invocation(
         base_url = gateway_url.rstrip("/") + "/v1"
         _bypass_loopback_proxy(env)
     elif provider.protocol == "responses" and provider.execution_mode in {"direct", "auto"}:
-        base_url = configured_base_url
+        base_url = relay_url or configured_base_url
     else:
         raise LaunchError(f"Provider '{provider.id}' needs gateway mode for protocol '{provider.protocol}'.")
     if not provider.auth_secret_ref:
@@ -94,6 +110,12 @@ def build_invocation(
         f"model_providers.{provider.id}.supports_websockets=false",
         f"model_reasoning_effort={toml_value(reasoning, ensure_ascii=True)}",
     ]
+    policy = retry_policy(config)
+    if policy.enabled and policy.max_retries and (relay_url or provider.execution_mode == "gateway"):
+        # One retry layer: the relay or the gateway waits and resends, so
+        # Codex's own quick request retries would multiply every cycle.
+        overrides.append(f"model_providers.{provider.id}.request_max_retries=0")
+        overrides.append(f"model_providers.{provider.id}.stream_idle_timeout_ms={_retry_idle_ms(policy)}")
     overrides.extend(catalog_override(os.environ.get("CODEX_CA_MODEL_CATALOG"), model, prefix))
     window = validate_model_limits(provider.model_limits).get("context_window")
     if window is None:
@@ -177,6 +199,11 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
         if provider.agent_models.get("policy") == "custom" and provider.agent_models.get("default") != model:
             registry_options["codex_model_safe_resume"] = True
         registry_options.update(runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path()))
+        policy = retry_policy(config)
+        if policy.enabled and policy.max_retries:
+            from .retry_log import RetryLog
+
+            registry_options.update(retry_policy=policy, retry_log=RetryLog(cache_path().parent / "retry.log"))
         if validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode) == "function":
             registry_options["client_tool_search"] = "function"
         registry_options.update(validate_gateway_limits(provider.gateway_limits, provider.execution_mode))
@@ -265,8 +292,18 @@ def launch(config: Config, provider: Provider, model: str, reasoning: str, extra
                 argv, env = build_invocation(config, provider, model, reasoning, extra, gateway_url=origin, gateway_token=gateway.inbound_token)
                 with foreground_child():
                     return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
-        argv, env = build_invocation(config, provider, model, reasoning, extra)
-        with foreground_child():
-            return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
+        policy = retry_policy(config)
+        if not policy.enabled or not policy.max_retries:
+            argv, env = build_invocation(config, provider, model, reasoning, extra)
+            with foreground_child():
+                return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
+        from .retry_log import RetryLog
+        from .retry_relay import RetryRelay
+
+        log = RetryLog(cache_path().parent / "retry.log")
+        with RetryRelay(validate_base_url(provider.base_url), policy, "responses", log) as relay:
+            argv, env = build_invocation(config, provider, model, reasoning, extra, relay_url=relay.base_url)
+            with foreground_child():
+                return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
     except OSError as exc:
         raise LaunchError(f"Could not start Codex: {exc}") from exc

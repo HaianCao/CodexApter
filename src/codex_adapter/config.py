@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+try:
+    from protoverta.error_classes import RetryPolicy
+except ImportError:  # A broken install must still open the setup page.
+    RetryPolicy = None  # type: ignore[assignment,misc]
+
 from .errors import ConfigError
 from .toml_text import toml_value
 
@@ -239,6 +244,8 @@ class Config:
     models: dict[str, ModelAlias] = field(default_factory=dict)
     path: Path | None = None
     env_file: Path | None = None
+    # The [retry] table as written; see retry_policy(). Empty means defaults.
+    retry: dict = field(default_factory=dict)
 
     def resolve(self, provider: str | None, model: str | None, reasoning: str | None) -> tuple[Provider, str, str]:
         requested_provider = provider or self.defaults.provider
@@ -443,7 +450,11 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
             _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None,
         )
     configured_env_file = _string(raw.get("env_file"), "env_file")
-    config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None)
+    retry = raw.get("retry", {})
+    if not isinstance(retry, dict):
+        raise ConfigError("[retry] must be a TOML table.")
+    config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None, retry)
+    retry_policy(config)
     validate_secret_names(config)
     if defaults.provider and defaults.provider not in providers:
         raise ConfigError(f"defaults.provider references missing provider '{defaults.provider}'.")
@@ -452,6 +463,16 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
 
 def _quote(value: str) -> str:
     return toml_value(value)
+
+
+def retry_policy(config: Config):
+    """The session's error-class retry policy (Protoverta ``RetryPolicy``)."""
+    if RetryPolicy is None:
+        raise ConfigError("CodexApter's Protoverta component is missing or broken. Run the installer command again to repair it.")
+    try:
+        return RetryPolicy.from_mapping(config.retry)
+    except ValueError as exc:
+        raise ConfigError(f"Invalid [retry] settings: {exc}") from None
 
 
 def validate_secret_names(config: Config) -> None:
@@ -482,6 +503,9 @@ def save(config: Config, path: Path | None = None) -> Path:
     ):
         if value:
             lines.append(f"{key} = {_quote(value)}")
+    if config.retry:
+        # Written as the user set it (0.1.x wrote this table too).
+        lines += ["", "[retry]"] + [f"{key} = {toml_value(config.retry[key])}" for key in sorted(config.retry)]
     for name, secret in sorted(config.secrets.items()):
         lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
     for name, provider in sorted(config.providers.items()):

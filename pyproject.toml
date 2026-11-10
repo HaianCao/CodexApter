@@ -4,12 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codexapter"
-version = "0.2.0a2"
+version = "0.2.0rc1"
 description = "Configuration-driven multi-provider launcher for Codex CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = []
+# The local gateway is part of every install (direct mode stays available).
+dependencies = ["protoverta==0.3.0rc1"]
 authors = [{ name = "HaianCao", email = "caohaian2005@gmail.com" }]
 keywords = ["codex", "codex-cli", "llm", "openai", "launcher", "openrouter", "gateway"]
 classifiers = [
@@ -35,7 +36,8 @@ Changelog = "https://github.com/HaianCao/CodexApter/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
-gateway = ["protoverta==0.3.0a11"]
+# Kept so older install commands that request the extra keep working.
+gateway = []
 
 [project.scripts]
 codex-ca = "codex_adapter.cli:main"

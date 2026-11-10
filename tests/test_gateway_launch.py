@@ -112,6 +112,7 @@ class GatewayLaunchTests(unittest.TestCase):
                 self.inbound_token = inbound_token
                 events.append((upstream, base_url, key, auth_style))
                 assert policy.pop("model_snapshot") == (base_url, upstream, (("model-id", "model-id"),))
+                assert policy.pop("retry_policy").enabled and callable(policy.pop("retry_log"))
                 assert policy == {
                     "client_profile": "codex",
                     "default_max_output_tokens": 16384,
