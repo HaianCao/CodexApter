@@ -301,8 +301,14 @@ def fetch_models(
                     raise DiscoveryError("Model discovery response is too large (limit: 8 MB).")
                 payload = _decode_json(raw)
     except HTTPError as exc:
+        try:
+            body = exc.read(4096) if exc.fp is not None else b""
+        except (OSError, ValueError):
+            body = b""
         exc.close()
-        raise DiscoveryError(f"Model discovery failed for '{provider.id}': HTTP {exc.code}.") from None
+        from .connection_probe import friendly_http_error
+
+        raise DiscoveryError(f"{provider.display_name}: {friendly_http_error(exc.code, body)}") from None
     except (URLError, OSError, UnicodeError, ValueError, RecursionError, HTTPException) as exc:
         raise DiscoveryError(f"Model discovery failed for '{provider.id}': {type(exc).__name__}.") from None
     data = payload.get("data") if isinstance(payload, dict) else None

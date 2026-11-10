@@ -40,13 +40,15 @@ In PowerShell, run the installer directly from GitHub. No repository clone is ne
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/main/scripts/install.ps1")))
 ```
 
-The installer sets up CodexApter for your Windows account. It can install Python 3.11+ with `winget` if needed and installs the official Codex CLI only if it is missing. It does not require administrator access. When installation finishes, open a new terminal and start setup:
+The installer sets up CodexApter and its local Protoverta gateway for your Windows account. It can install Python 3.11+ with `winget` if needed and installs the official Codex CLI only if it is missing. It does not require administrator access. Run the same command again to update; your providers and API keys are kept.
+
+Open a new terminal and run:
 
 ```powershell
-codex-ca setup
+codex-ca
 ```
 
-The setup page opens in your browser. Add a provider, enter its API key, refresh the model list or type a model ID, then choose your default model and reasoning effort. Setup is opened only when you run `codex-ca setup`.
+The first time, this opens the setup page in your browser (later, `codex-ca setup` opens it). Paste your provider's base URL and API key, choose the API it speaks, pick a model and select **Run Codex**. That is all: authentication, the connection mode, the model's context window and retries are set up automatically.
 
 Windows supports native CLI executables and standard npm global or project installations. Custom batch-wrapper behavior is not supported; use an official CLI installation if the launcher cannot resolve it safely.
 
@@ -54,20 +56,30 @@ Windows supports native CLI executables and standard npm global or project insta
 
 In the setup page:
 
-**Quick start:** select **Add**, pick **OpenRouter**, **NVIDIA NIM**, **TokenHarbor** or **AgentRouter** under *Start from a tested provider*, paste your API key and select **Save provider**. The address, protocol and connection mode are filled in for you; then pick a model and select **Run Codex**.
+1. Select **Add**. For **OpenRouter**, **NVIDIA NIM**, **TokenHarbor** or **AgentRouter**, pick it under *Start from a tested provider*; otherwise leave *Custom provider*.
+2. Paste the **Base URL** (for example `https://api.example.com/v1`, without `/responses` or `/chat/completions`) and your **API key**.
+3. Choose the **API** your provider speaks: Responses, Chat Completions or Anthropic Messages.
+4. Select **Save provider**. Setup checks the key without generating anything (no cost), uses `Authorization: Bearer` or, if the provider needs it, `x-api-key` through the local gateway, and tells you if the key is rejected or the address has no such API.
+5. Pick a model from the list (or type its ID), choose a reasoning effort, then **Save as default** or **Run Codex**.
 
-For any other provider:
+The provider's name and ID come from its address; change them, the authentication or the gateway choice under **Advanced: connection details** if you need to.
 
-1. Select **Add** and enter a display name (the provider ID is derived from it) and API base URL (for example, `https://api.example.com/v1`). Use the API prefix, without `/responses`, `/messages` or `/chat/completions`.
-2. Enter the provider's API key. CodexApter derives the internal secret and environment-variable names from the provider ID.
-3. Select **Refresh models** to query the provider's model catalog, or type a model ID directly.
-4. Choose a reasoning effort and select **Save as default** or **Run Codex**.
+### How CodexApter connects
+
+| | Local gateway (default) | Direct |
+|---|---|---|
+| Path | Codex → Protoverta on your computer → provider | Codex → provider |
+| Provider APIs | Responses, Chat Completions, Anthropic Messages (translated) | Responses only |
+| Extras | Retries by error class, stream checks, keep-alives, clear errors, `x-api-key` providers | Retries by a small local relay |
+| When to choose | Almost always | Providers that only accept the official Codex client (AgentRouter); set automatically |
+
+Your key stays on your computer in both cases. Switch under **Advanced: connection details**, or set `execution_mode = "direct"` or `"gateway"` for the provider in the configuration file. Providers saved by CodexApter 0.1 keep the mode they had.
 
 When you choose **Run Codex**, the setup page closes and Codex takes over the terminal where you launched `codex-ca setup`. Direct mode supplies the provider key; gateway mode supplies a temporary local token and keeps the upstream key in the launcher.
 
 **Run Codex** uses the current selection for this session. Choose **Save as default** explicitly to change future launches. Model lists are discovery data; the setup page reports local route evidence separately, and manual model IDs remain available if discovery fails.
 
-### Optional protocol gateway
+### Gateway details
 
 Reasoning compatibility is automatic for new providers. The launcher preserves
 portable public reasoning (Chat `reasoning_content` or OpenRouter `reasoning`)
@@ -86,15 +98,7 @@ limit (previously 4096, which truncated long edits).
 
 Tested providers (OpenRouter, NVIDIA NIM, TokenHarbor, AgentRouter), their known limits and recommended settings: [provider compatibility](https://github.com/HaianCao/Protoverta/blob/main/docs/compatibility/providers.md).
 
-This branch is gateway preview **0.2.0a2**, pinned to [Protoverta](https://github.com/HaianCao/Protoverta) **0.3.0a11**.
-The pinned Protoverta release is published, so the gateway preview installs in
-one line:
-
-```powershell
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/HaianCao/CodexApter/integration/protoverta/scripts/install.ps1"))) -WithGateway -SourceBranch integration/protoverta
-```
-
-The gateway component is version-pinned. Select **Chat Completions** or **Messages** as the provider API in setup, or opt into the gateway for a Responses provider. The regular `main` installer remains the stable, non-gateway path.
+CodexApter **0.2.0rc1** installs [Protoverta](https://github.com/HaianCao/Protoverta) **0.3.0rc1**; the installer verifies the gateway wheel's SHA-256 before installing it.
 
 Under **Advanced: model compatibility checks**, you can select a local capability
 registry file and require verified capabilities. Relative paths start at the
@@ -104,7 +108,7 @@ unless you maintain capability records for your provider's exact API prefix and
 model IDs. Basic launch capabilities are checked before setup closes; tools and
 output formats are checked against each actual request.
 
-Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. The launcher requests web search, multi-agent execution and reasoning summaries to be disabled for translated sessions. Session history may still advertise old function tools; supported namespace functions are mapped by the gateway. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 4096 tokens when Codex supplies no limit; this is adjustable in setup.
+Cross-protocol mode supports text, function tools and `low`/`medium`/`high` effort when the model supports it. The launcher requests web search, multi-agent execution and reasoning summaries to be disabled for translated sessions. Session history may still advertise old function tools; supported namespace functions are mapped by the gateway. Hidden reasoning history does not transfer between protocols. For Messages providers, the default output limit is 16384 tokens when Codex supplies no limit; this is adjustable in setup.
 
 Responses function namespaces are mapped to reversible aliases for Chat/Messages;
 native Responses forwarding is unchanged. In a Messages provider's advanced
@@ -129,6 +133,44 @@ codex-ca --help
 ```
 
 After installation, `codex-ca` is available from any working directory. Re-run the installer command to update CodexApter; your provider settings are retained. Updates are checked before activation, so a failed download or package preparation leaves the existing version usable.
+
+## Automatic retry
+
+When a provider fails a request with a temporary error, CodexApter waits and sends the same request again, so you see an error only when it keeps failing. In gateway mode Protoverta does this; in direct mode a small local relay does. A request is retried at one layer only.
+
+| Retried (default) | Not retried (shown at once) |
+|---|---|
+| rate limits, overloaded or unavailable providers, server errors, network failures, streams that fail before any output, backend mismatches (for example "created under a different Azure OpenAI resource"), unrecognised errors | rejected key, no credit, unknown model, context too long, content policy, invalid request |
+
+Output that already reached Codex is never sent again. Defaults: up to 10 retries about 60 s apart (± 20 %, at least the provider's `Retry-After`), 30 minutes at most. Press Esc in Codex to cancel; the wait stops too. Each decision, with the provider's error message, is written to `%LOCALAPPDATA%\codexapter\retry.log` (kept under about 1 MB).
+
+To change this, add a `[retry]` table to `%APPDATA%\codexapter\config.toml` (every key is optional):
+
+```toml
+[retry]
+enabled = true             # false: no retries
+max_retries = 10           # 0-100
+delay_seconds = 60         # 0-3600
+jitter = 0.2               # fraction of the delay
+max_total_seconds = 1800   # stop waiting after this long
+retry_classes = []         # add classes, e.g. ["model_not_found"]
+no_retry_classes = []      # remove classes, e.g. ["network"]
+```
+
+Classes: `rate_limit`, `overloaded`, `server`, `network`, `stream_interrupted`, `backend_mismatch`, `unknown` (retried by default) and `auth`, `billing`, `model_not_found`, `context_length`, `content_policy`, `invalid_request`. Network retries resend a request whose generation may already have started, which some providers bill; remove `network` if that matters to you.
+
+## Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| "The provider rejected this API key" when saving | Paste the key again (without `Bearer `); check that it is active and has credit. |
+| "This provider only accepts its official CLIs" | Expected for AgentRouter: it runs Direct and has no readable model list; type the model ID. |
+| "No model list" / the model list is empty | Type the exact model ID from the provider's website. |
+| "This provider has no … endpoint at this address" | Check the base URL (it usually ends in `/v1`) and the API you chose. |
+| Requests fail after a long wait | Open `%LOCALAPPDATA%\codexapter\retry.log` to see the provider's error for each attempt. |
+| "Protoverta component is missing or broken" | Run the installer command again; it repairs the installation and keeps your settings. |
+| Behind a company proxy | Set `HTTPS_PROXY` (and `NO_PROXY` for local addresses); the local gateway is reached directly. |
+| A provider needs custom headers or query parameters (for example Azure `api-version`) | Not supported yet; use an OpenAI- or Anthropic-compatible endpoint for that provider. |
 
 ## Uninstall
 
@@ -157,9 +199,9 @@ require the pinned Protoverta release
 
 ## Privacy and security
 
-Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. A key saved there takes precedence over an environment variable of the same name; the environment variable is used only when the file has no value. The setup page listens only on your own computer (`127.0.0.1`). Direct mode does not proxy conversations; gateway mode starts a temporary loopback Protoverta server and stops it when Codex exits.
+Provider settings and API keys are stored on your computer. API keys are kept in a local `.env` file in plain text, so protect the file and never commit or share it. A key saved there takes precedence over an environment variable of the same name; the environment variable is used only when the file has no value. The setup page listens only on your own computer (`127.0.0.1`). Gateway mode (the default) starts a temporary Protoverta server on `127.0.0.1` and stops it when Codex exits; direct mode starts a small retry relay there instead. Neither adds credentials or stores conversation content; `retry.log` keeps only request paths and provider error messages.
 
-Gateway mode is experimental. Client interoperability is tested with scripted local upstreams; each real provider/model still needs its own compatibility check.
+Client interoperability is tested with scripted local upstreams and live checks of the tested providers; other providers and models can differ.
 
 For Chat providers returning unsigned `reasoning_content`, automatic mode keeps
 public reasoning separate from the answer and supports replay
@@ -214,7 +256,7 @@ python -m pytest
 
 Pull requests and pushes are checked by the project's GitHub Actions workflow.
 
-To test an unpublished gateway build, pass `-ProtovertaWheel PATH_TO_WHEEL` to the local installer. This enables the gateway extra and checks its pinned package version without copying Protoverta source into this project.
+To test an unpublished Protoverta build, pass `-ProtovertaWheel PATH_TO_WHEEL` to the local installer; it is installed instead of the pinned, hash-verified release wheel.
 
 Installer smoke tests can pass `-NoPathChanges` to install and uninstall scripts. Redirect `APPDATA` and `LOCALAPPDATA` in a disposable child shell as well: the flag alone does not isolate installation or user data paths.
 

@@ -60,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         config = load(args.config, allow_legacy_protocols=args.command == "setup")
+        if args.command is None and not config.providers:
+            print("No provider is set up yet. Opening CodexApter setup: add your endpoint and API key there.", file=sys.stderr)
+            return serve(config)
         if args.command is None:
             provider, model, reasoning = config.resolve(None, None, None)
             return launch(config, provider, model, reasoning, [])

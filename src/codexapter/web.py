@@ -29,6 +29,7 @@ from .config import (
     validate_public_reasoning,
     validate_system_models,
 )
+from .connection_probe import check_connection
 from .credentials import env_file_path, remove_token, resolve_token, store_token
 from .errors import AdapterError, ConfigError
 from .gateway_options import validate_gateway_limits, validate_gateway_runtime
@@ -38,6 +39,51 @@ from .settings_store import SettingsGuard, atomic_bytes
 from .web_http import SetupHTTPServer as ThreadingHTTPServer
 from .web_http import SetupRequestHandler as BaseHTTPRequestHandler
 from .web_security import local_request, token_matches
+
+_PROTOCOL_LABELS = {"responses": "Responses", "chat": "Chat Completions", "messages": "Anthropic Messages"}
+
+
+def probe_urls(base_url: str, protocol: str) -> tuple[str, str]:
+    """Model-list and endpoint URLs exactly as Codex and the gateway use them."""
+    prefix = validate_base_url(base_url).rstrip("/")
+    return prefix + "/models", prefix + {"responses": "/responses", "chat": "/chat/completions", "messages": "/messages"}[protocol]
+
+
+def detect_connection(config: Config, body: dict, probe=check_connection) -> tuple[dict, list[str]]:
+    """Resolve ``auth_mode: auto`` (Bearer, else x-api-key) before saving a provider.
+
+    Codex itself sends Bearer only, so a provider that needs x-api-key is
+    switched to the local gateway. Never generates text.
+    """
+    if str(body.get("auth_mode", "")) != "auto":
+        return body, []
+    body = {**body, "auth_mode": "bearer"}
+    protocol = normalize_protocol(str(body.get("protocol", "responses")))
+    token = str(body.get("api_key") or "")
+    current = config.providers.get(str(body.get("id", "")).strip())
+    if not token and current is not None:
+        try:
+            token = resolve_token(config, current, required=False) or ""
+        except AdapterError:
+            token = ""
+    try:
+        models_url, endpoint_url = probe_urls(str(body.get("base_url", "")), protocol)
+    except (AdapterError, KeyError):
+        return body, []  # Saving reports the invalid URL or protocol.
+    if not token:
+        return body, []
+    result = probe(models_url, endpoint_url, token, protocol_label=_PROTOCOL_LABELS.get(protocol, protocol))
+    if result.key_rejected:
+        raise ConfigError(result.notes[-1])
+    notes = list(result.notes)
+    if result.auth_mode:
+        body["auth_mode"] = result.auth_mode
+        if result.auth_mode == "api_key" and body.get("execution_mode") != "gateway":
+            body["execution_mode"] = "gateway"
+            notes.append("This provider needs the x-api-key header, which Codex cannot send itself, so it uses the local gateway.")
+    if result.official_client_only and protocol == "responses":
+        body["execution_mode"] = "direct"
+    return body, notes
 
 
 def public_config(config: Config) -> dict:
@@ -293,6 +339,10 @@ def serve(config: Config) -> int:
                 if urlparse(self.path).path == "/api/models/refresh":
                     self._refresh(body)
                     return
+                self._notes = []
+                if urlparse(self.path).path == "/api/provider":
+                    # Network checks run before taking the settings lock.
+                    body, self._notes = detect_connection(config, body)
                 with state_lock, guard.edit():
                     self._post(body)
             except TimeoutError:
@@ -357,7 +407,7 @@ def serve(config: Config) -> int:
                     protocol = normalize_protocol(str(body.get("protocol", current.protocol if current else "responses")))
                     if protocol not in {"responses", "chat", "messages"}:
                         raise ConfigError("Choose Responses, Chat Completions, or Messages.")
-                    execution_mode = str(body.get("execution_mode", current.execution_mode if current else "direct"))
+                    execution_mode = str(body.get("execution_mode", current.execution_mode if current else "gateway"))
                     if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
                         raise ConfigError("Chat Completions and Messages providers require gateway mode.")
                     max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS)
@@ -423,7 +473,7 @@ def serve(config: Config) -> int:
                             raise ConfigError("Discovery must be a boolean.")
                         updated.providers[provider_id].discovery.enabled = body["discovery"]
                     persist_change(config, updated, secret_env, api_key or None)
-                    self._json(public_config(config))
+                    self._json({**public_config(config), "notes": getattr(self, "_notes", [])})
                     return
                 if path == "/api/default":
                     provider = self._provider(body)
