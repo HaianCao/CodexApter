@@ -4,8 +4,9 @@ import json
 import os
 from pathlib import Path
 
-from .config import Provider, Config, config_path
+from .config import Config, Provider, config_path
 from .errors import CredentialError
+from .settings_store import atomic_bytes
 
 
 def env_file_path(config: Config | None = None) -> Path:
@@ -25,7 +26,9 @@ def resolve_token(config: Config, provider: Provider, *, required: bool = True) 
     reference = config.secrets.get(provider.auth_secret_ref)
     if not reference or not reference.env_var:
         raise CredentialError(f"Provider '{provider.id}' has an invalid secret reference.")
-    value = os.environ.get(reference.env_var) or _read_dotenv(env_file_path(config)).get(reference.env_var)
+    # A key saved through setup must win over a stale shell/system variable of
+    # the same name; the environment remains the fallback, as in ClaudApter.
+    value = _read_dotenv(env_file_path(config)).get(reference.env_var) or os.environ.get(reference.env_var)
     if not value and required:
         raise CredentialError(f"Missing credential '{reference.env_var}' for provider '{provider.id}'.")
     return value
@@ -55,7 +58,7 @@ def _read_dotenv(path: Path) -> dict[str, str]:
 
 
 def store_token(env_var: str, token: str, path: Path | None = None, *, config: Config | None = None) -> None:
-    """Store a token in a gitignored project .env file, never in TOML or logs."""
+    """Store a token in the adapter .env file beside the config, never in TOML or logs."""
     if not token:
         return
     if "\n" in token or "\r" in token or "\0" in token:
@@ -63,7 +66,7 @@ def store_token(env_var: str, token: str, path: Path | None = None, *, config: C
     target = path or env_file_path(config)
     values = _read_dotenv(target)
     values[env_var] = token
-    target.write_text("".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())), encoding="utf-8")
+    atomic_bytes(target, "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode("utf-8"))
     os.environ[env_var] = token
 
 
@@ -74,7 +77,7 @@ def remove_token(env_var: str, path: Path | None = None, *, config: Config | Non
     values.pop(env_var, None)
     if target.exists():
         if values:
-            target.write_text("".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())), encoding="utf-8")
+            atomic_bytes(target, "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode("utf-8"))
         else:
             target.unlink()
     os.environ.pop(env_var, None)

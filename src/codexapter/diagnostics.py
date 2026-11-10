@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
-from .catalog import fetch_models
+from .catalog import _open, fetch_models
 from .config import Config, Provider
 from .credentials import resolve_token
+from .errors import AdapterError
 
 
 def probe_responses(config: Config, provider: Provider, model: str, *, timeout: float = 20.0) -> str:
@@ -15,23 +16,26 @@ def probe_responses(config: Config, provider: Provider, model: str, *, timeout: 
         return f"SKIP: configured protocol is '{provider.protocol}', not Responses."
     try:
         token = resolve_token(config, provider)
-    except Exception as exc:
+    except (AdapterError, OSError) as exc:
         return f"SKIP: credentials unavailable ({exc})."
 
     headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
     if token:
-        headers["Authorization"] = f"Bearer {token}"
+        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = token if provider.auth_mode == "api_key" else f"Bearer {token}"
     body = json.dumps({"model": model, "input": "Reply with exactly: pong", "stream": False, "max_output_tokens": 16}).encode("utf-8")
     request = Request(f"{provider.base_url.rstrip('/')}/responses", data=body, headers=headers, method="POST")
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with _open(request, timeout=timeout) as response:
             status = response.status
-            payload = json.loads(response.read().decode("utf-8"))
+            raw = response.read(65537)
+            if len(raw) > 65536:
+                return "FAIL: probe response exceeded its size limit."
+            payload = json.loads(raw.decode("utf-8"))
     except HTTPError as exc:
+        exc.close()
         return f"FAIL: HTTP {exc.code} from /responses."
     except (URLError, TimeoutError) as exc:
-        reason = exc.reason if isinstance(exc, URLError) else "request timed out"
-        return f"FAIL: {reason}."
+        return f"FAIL: {type(exc).__name__}."
     except (UnicodeDecodeError, json.JSONDecodeError):
         return "FAIL: endpoint did not return valid JSON."
     if status < 200 or status >= 300:
@@ -46,13 +50,13 @@ def doctor(config: Config, provider: Provider, model: str) -> list[tuple[str, st
     try:
         resolve_token(config, provider)
         rows.append(("Credentials", "OK"))
-    except Exception as exc:
+    except (AdapterError, OSError) as exc:
         rows.append(("Credentials", f"FAIL: {exc}"))
     if provider.discovery.enabled:
         try:
             models = fetch_models(config, provider)
             rows.append(("Model discovery", f"OK ({len(models)} models)"))
-        except Exception as exc:
+        except (AdapterError, OSError) as exc:
             rows.append(("Model discovery", f"WARN: {exc}"))
     else:
         rows.append(("Model discovery", "Unavailable (manual model IDs allowed)"))

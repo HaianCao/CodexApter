@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import config_path, load
+from .config import load
 from .diagnostics import doctor
 from .errors import AdapterError
 from .launcher import launch
@@ -24,19 +24,26 @@ def _parser() -> argparse.ArgumentParser:
     setup = commands.add_parser("setup", help="Open interactive provider/model setup")
     setup.add_argument("codex_args", nargs=argparse.REMAINDER)
     run = commands.add_parser("run", help="Run Codex using resolved configuration")
-    _add_selection(run); run.add_argument("codex_args", nargs=argparse.REMAINDER)
+    _add_selection(run)
+    run.add_argument("codex_args", nargs=argparse.REMAINDER)
     execute = commands.add_parser("exec", help="Forward Codex exec arguments")
-    _add_selection(execute); execute.add_argument("codex_args", nargs=argparse.REMAINDER)
+    _add_selection(execute)
+    execute.add_argument("codex_args", nargs=argparse.REMAINDER)
     resume = commands.add_parser("resume", help="Forward Codex resume arguments")
-    _add_selection(resume); resume.add_argument("codex_args", nargs=argparse.REMAINDER)
+    _add_selection(resume)
+    resume.add_argument("codex_args", nargs=argparse.REMAINDER)
     providers = commands.add_parser("providers", help="Provider operations")
     providers.add_argument("action", choices=["list"])
     models = commands.add_parser("models", help="Model operations")
-    models.add_argument("action", choices=["list"]); models.add_argument("-p", "--provider")
+    models.add_argument("action", choices=["list"])
+    models.add_argument("-p", "--provider")
     validate = commands.add_parser("config", help="Configuration operations")
     validate.add_argument("action", choices=["validate"])
     check = commands.add_parser("doctor", help="Validate provider setup")
     _add_selection(check)
+    check.add_argument("--allow-live", action="store_true", help="Allow bounded provider route checks (may incur cost)")
+    check.add_argument("--check", action="append", choices=["text", "streaming", "tools", "streaming_tools", "tool_result", "history_replay"])
+    check.add_argument("--report", help="Write positive route evidence to a new JSON file")
     migrate = commands.add_parser("migrate", help="Plan a cross-provider migrated session")
     migrate.add_argument("--from", dest="source", required=True, help="Source session ID")
     migrate.add_argument("--scope", choices=["recent", "all", "summary"], default="recent")
@@ -53,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         config = load(args.config, allow_legacy_protocols=args.command == "setup")
+        if args.command is None and not config.providers:
+            print("No provider is set up yet. Opening CodexApter setup: add your endpoint and API key there.", file=sys.stderr)
+            return serve(config)
         if args.command is None:
             provider, model, reasoning = config.resolve(None, None, None)
             return launch(config, provider, model, reasoning, [])
@@ -72,6 +82,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         provider, model, reasoning = config.resolve(args.provider, args.model, args.reasoning)
         if args.command == "doctor":
+            if provider.execution_mode == "gateway" or args.check or args.report:
+                from .route_doctor import route_doctor
+
+                checks = route_doctor(config, provider, model, allow_live=args.allow_live, checks=args.check, report=args.report)
+                for item in checks:
+                    print(f"{item['case']}: {item['outcome']} ({item['requests']} requests, {item['duration_ms']} ms)")
+                return 0 if all(item["passed"] for item in checks) else 1
             results = doctor(config, provider, model)
             for name, status in results:
                 print(f"{name}: {status}")
@@ -87,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     except AdapterError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        return 130
 
 
 if __name__ == "__main__":

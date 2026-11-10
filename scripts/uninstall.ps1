@@ -81,6 +81,7 @@ function Invoke-AdapterUninstall {
     foreach ($installName in $InstallNames) {
         $target = Join-Path $programsRoot $installName
         $pathTargets += Join-Path $target 'venv\Scripts'
+        $pathTargets += Join-Path $target 'bin'
         if (Remove-AdapterDirectory $target $programsRoot $installName) { $removed = $true }
     }
     if ($removed) { Write-Host "Removed $Name program files." }
@@ -147,7 +148,7 @@ function Invoke-AdapterUninstall {
 }
 
 try {
-    Invoke-AdapterUninstall -Name 'CodexApter' -InstallNames @('codex-ca', 'codex-ai') -DataNames @('codexapter', 'codex-ai') -EnvironmentNames @('CODEX_CA_CONFIG', 'CODEX_CA_CACHE', 'CODEX_CA_ENV_FILE') -PipxNames @('codexapter', 'codex-multi-provider') -DeleteData:$DeleteData -ResetEnvironment:$ResetEnvironment -NonInteractive:$NonInteractive -NoPathChanges:$NoPathChanges
+    Invoke-AdapterUninstall -Name 'CodexApter' -InstallNames @('codex-ca', 'codex-ai') -DataNames @('codexapter', 'codex-ai') -EnvironmentNames @('CODEX_CA_CONFIG', 'CODEX_CA_CACHE', 'CODEX_CA_ENV_FILE', 'CODEX_CA_MCP_CONFIG', 'CODEX_CA_MODEL_CATALOG', 'CODEX_CA_ENABLE_SUBAGENTS') -PipxNames @('codexapter', 'codex-multi-provider') -DeleteData:$DeleteData -ResetEnvironment:$ResetEnvironment -NonInteractive:$NonInteractive -NoPathChanges:$NoPathChanges
 }
 catch {
     Write-Host ("Uninstall failed: " + $_.Exception.Message) -ForegroundColor Red

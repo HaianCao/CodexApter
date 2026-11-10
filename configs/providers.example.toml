@@ -6,11 +6,18 @@ model = "deepseek-v4-flash"
 reasoning_effort = "medium"
 execution_mode = "direct"
 
+# Optional. Retry failed provider requests by error class (all keys optional).
+# Gateway mode: Protoverta retries; direct mode: a local relay does.
 [retry]
 enabled = true
 max_retries = 10
 delay_seconds = 60
-skip_status = [401, 403]
+jitter = 0.2
+max_total_seconds = 1800
+# Default retried classes: rate_limit, overloaded, server, network,
+# stream_interrupted, backend_mismatch, unknown. Add or remove classes:
+retry_classes = []
+no_retry_classes = []
 
 [providers.agentrouter]
 display_name = "AgentRouter"
@@ -19,6 +26,18 @@ auth_secret_ref = "agentrouter-main"
 protocol = "responses"
 execution_mode = "direct"
 default_model = "deepseek-v4-flash"
+upstream_reasoning = "auto" # Choose compatible reasoning handling for this route.
+# New setup providers default to selected; omitted on older configs means inherit.
+# This sets defaults only and does not enable subagents on translated routes.
+# agent_models = { policy = "selected" }
+# agent_models = { policy = "custom", default = "provider/worker", effort = "low" }
+# Messages gateway providers only: exact model IDs verified by the provider.
+# messages_system_models = ["provider-verified-model-id"]
+# Optional capability checks require execution_mode = "gateway".
+# capabilities_file = "capabilities.json" # relative to this config file
+# require_verified_capabilities = true
+# Optional runtime overrides also require gateway mode; omitted values use defaults.
+# gateway_limits = { total_timeout = 600, progress_timeout = 120, max_stream_bytes = 33554432 }
 
 [providers.agentrouter.model_discovery]
 enabled = true

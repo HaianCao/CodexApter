@@ -1,22 +1,77 @@
-import os
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_adapter.config import Config, Defaults, Discovery, ModelAlias, Provider, SecretReference, cache_path, config_path, load, save, validate_base_url
-from codex_adapter.credentials import env_file_path, remove_token, resolve_token, store_token
-from codex_adapter.errors import ConfigError
+from codexapter.config import (
+    Config,
+    Defaults,
+    Discovery,
+    ModelAlias,
+    Provider,
+    SecretReference,
+    cache_path,
+    config_path,
+    load,
+    save,
+    validate_base_url,
+)
+from codexapter.credentials import (
+    env_file_path,
+    remove_token,
+    resolve_token,
+    store_token,
+)
+from codexapter.errors import ConfigError
 
 
 class ConfigTests(unittest.TestCase):
+    def test_legacy_protocol_names_load_and_save_as_shared_names(self):
+        self.assertEqual(Provider("p", "P", "https://example.test/v1", protocol="anthropic_messages").protocol, "messages")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(
+                'schema_version = 1\n\n[providers.legacy]\ndisplay_name = "Legacy"\nbase_url = "https://example.test/v1"\n'
+                'protocol = "chat_completions"\nexecution_mode = "gateway"\n',
+                encoding="utf-8",
+            )
+            config = load(path)
+            self.assertEqual(config.providers["legacy"].protocol, "chat")
+            save(config, path)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('protocol = "chat"', text)
+            self.assertNotIn("chat_completions", text)
+            self.assertEqual(load(path).providers["legacy"].protocol, "chat")
+
+    def test_messages_system_models_round_trip_and_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            provider = Provider(
+                "demo", "Demo", "https://example.test/v1", protocol="messages", execution_mode="gateway", messages_system_models=["verified-model"]
+            )
+            config = Config(providers={"demo": provider}, path=Path(directory) / "config.toml")
+            save(config)
+            self.assertEqual(load(config.path).providers["demo"].messages_system_models, ["verified-model"])
+            for invalid in ("verified-model", [""], ["bad model"], ["m", "m"], [1]):
+                provider.messages_system_models = invalid
+                with self.assertRaises(ConfigError):
+                    save(config)
+            provider.messages_system_models = ["verified-model"]
+            provider.protocol = "responses"
+            with self.assertRaises(ConfigError):
+                save(config)
+
     def test_save_load_and_resolve_default(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.toml"
             config = Config(
                 defaults=Defaults(provider="demo", model="fast", reasoning_effort="high"),
-                providers={"demo": Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key", default_model="fallback", discovery=Discovery(enabled=True))},
+                providers={
+                    "demo": Provider(
+                        "demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key", default_model="fallback", discovery=Discovery(enabled=True)
+                    )
+                },
                 secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_KEY")},
                 models={"fast": ModelAlias("fast", "demo", "vendor/fast")},
                 path=path,
@@ -49,11 +104,23 @@ class ConfigTests(unittest.TestCase):
             )
             with patch.dict("os.environ", {}, clear=False):
                 import os
+
                 os.environ.pop("DEMO_API_TOKEN", None)
                 store_token("DEMO_API_TOKEN", "sample-token", config=config)
                 os.environ.pop("DEMO_API_TOKEN", None)
                 self.assertEqual(resolve_token(config, config.providers["demo"]), "sample-token")
                 self.assertEqual(env_path.read_text(encoding="utf-8"), 'DEMO_API_TOKEN="sample-token"\n')
+
+    def test_saved_key_wins_over_stale_environment_variable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            env_path.write_text('DEMO_STALE_TOKEN="saved-key"\n', encoding="utf-8")
+            provider = Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")
+            config = Config(providers={"demo": provider}, secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_STALE_TOKEN")}, env_file=env_path)
+            with patch.dict("os.environ", {"DEMO_STALE_TOKEN": "stale-key"}):
+                self.assertEqual(resolve_token(config, provider), "saved-key")
+                env_path.write_text("", encoding="utf-8")
+                self.assertEqual(resolve_token(config, provider), "stale-key")
 
     def test_dotenv_round_trips_quoted_api_keys_and_removes_only_selected_key(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -63,14 +130,17 @@ class ConfigTests(unittest.TestCase):
             store_token("DEMO_TOKEN", token, config=config)
             store_token("OTHER_TOKEN", "keep-me", config=config)
             os.environ.pop("DEMO_TOKEN", None)
-            self.assertEqual(resolve_token(
-                Config(
-                    providers={"demo": Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")},
-                    secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_TOKEN")},
-                    env_file=env_path,
+            self.assertEqual(
+                resolve_token(
+                    Config(
+                        providers={"demo": Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")},
+                        secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_TOKEN")},
+                        env_file=env_path,
+                    ),
+                    Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key"),
                 ),
-                Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key"),
-            ), token)
+                token,
+            )
             remove_token("DEMO_TOKEN", config=config)
             self.assertNotIn("DEMO_TOKEN", env_path.read_text(encoding="utf-8"))
             self.assertIn('OTHER_TOKEN="keep-me"', env_path.read_text(encoding="utf-8"))
@@ -88,6 +158,7 @@ class ConfigTests(unittest.TestCase):
             config = Config(path=Path(directory) / "config.toml")
             with patch.dict("os.environ", {}, clear=False), patch.object(Path, "is_file", return_value=False):
                 import os
+
                 os.environ.pop("CODEX_CA_ENV_FILE", None)
                 self.assertEqual(env_file_path(config), Path(directory) / ".env")
 
@@ -104,7 +175,7 @@ class ConfigTests(unittest.TestCase):
             appdata = Path(directory) / "roaming"
             old_root, new_root = appdata / "codex-ai", appdata / "codexapter"
             old_root.mkdir(parents=True)
-            (old_root / "config.toml").write_text('schema_version = 1\nenv_file = ' + json.dumps(str(old_root / ".env")) + '\n', encoding="utf-8")
+            (old_root / "config.toml").write_text("schema_version = 1\nenv_file = " + json.dumps(str(old_root / ".env")) + "\n", encoding="utf-8")
             (old_root / ".env").write_text('DEMO_TOKEN="keep"\n', encoding="utf-8")
             with patch.dict("os.environ", {"APPDATA": str(appdata), "LOCALAPPDATA": str(Path(directory) / "local")}, clear=True):
                 loaded = load()
@@ -119,7 +190,7 @@ class ConfigTests(unittest.TestCase):
             old_root, new_root = appdata / "codex-ai", appdata / "codexapter"
             old_root.mkdir(parents=True)
             new_root.mkdir(parents=True)
-            (old_root / "config.toml").write_text('schema_version = 1\n', encoding="utf-8")
+            (old_root / "config.toml").write_text("schema_version = 1\n", encoding="utf-8")
             (new_root / "config.toml").write_text('[defaults]\nreasoning_effort = "high"\n', encoding="utf-8")
             with patch.dict("os.environ", {"APPDATA": str(appdata), "LOCALAPPDATA": str(Path(directory) / "local")}, clear=True):
                 self.assertEqual(load().defaults.reasoning_effort, "high")
@@ -128,25 +199,50 @@ class ConfigTests(unittest.TestCase):
     def test_base_url_allows_https_and_exact_loopback_only(self):
         self.assertEqual(validate_base_url("https://api.example.test/v1/"), "https://api.example.test/v1")
         self.assertEqual(validate_base_url("http://localhost:8080/v1"), "http://localhost:8080/v1")
-        for value in ("http://localhost.attacker.example/v1", "http://127.0.0.1.attacker.example/v1", "http://user@localhost/v1", "https://@api.example.test/v1", "https://api.example.test/v1?token=x"):
+        for value in (
+            "http://localhost.attacker.example/v1",
+            "http://127.0.0.1.attacker.example/v1",
+            "http://user@localhost/v1",
+            "https://@api.example.test/v1",
+            "https://api.example.test/v1?token=x",
+        ):
             with self.subTest(value=value), self.assertRaises(ConfigError):
                 validate_base_url(value)
 
-    def test_setup_can_load_legacy_protocol_for_repair(self):
+    def test_gateway_protocol_is_available_for_normal_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "legacy.toml"
-            path.write_text('''schema_version = 1
+            path.write_text(
+                """schema_version = 1
 [providers.nim]
 display_name = "NVIDIA NIM"
 base_url = "https://example.test/v1"
-protocol = "chat_completions"
+protocol = "chat"
 execution_mode = "gateway"
-''', encoding="utf-8")
-            with self.assertRaises(ConfigError):
-                load(path)
-            config = load(path, allow_legacy_protocols=True)
+""",
+                encoding="utf-8",
+            )
+            config = load(path)
             self.assertEqual(config.providers["nim"].display_name, "NVIDIA NIM")
-            self.assertEqual(config.providers["nim"].protocol, "chat_completions")
+            self.assertEqual(config.providers["nim"].protocol, "chat")
+            self.assertEqual(config.providers["nim"].execution_mode, "gateway")
+
+    def test_non_responses_provider_requires_gateway_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.toml"
+            path.write_text(
+                """schema_version = 1
+[providers.demo]
+display_name = "Demo"
+base_url = "https://example.test/v1"
+protocol = "chat"
+execution_mode = "direct"
+""",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ConfigError, "requires gateway mode"):
+                load(path)
+            self.assertEqual(load(path, allow_legacy_protocols=True).providers["demo"].protocol, "chat")
 
     def test_invalid_toml_table_shapes_raise_config_error(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -158,8 +254,8 @@ execution_mode = "gateway"
     def test_invalid_discovery_types_and_ttl_raise_config_error(self):
         examples = (
             'enabled = "false"\n',
-            'cache_ttl_seconds = 0\n',
-            'cache_ttl_seconds = true\n',
+            "cache_ttl_seconds = 0\n",
+            "cache_ttl_seconds = true\n",
         )
         for setting in examples:
             with self.subTest(setting=setting), tempfile.TemporaryDirectory() as directory:
@@ -169,7 +265,8 @@ execution_mode = "gateway"
 [providers.demo]
 base_url = "https://example.test/v1"
 [providers.demo.model_discovery]
-""" + setting,
+"""
+                    + setting,
                     encoding="utf-8",
                 )
                 with self.assertRaises(ConfigError):
@@ -183,7 +280,7 @@ base_url = "https://example.test/v1"
                 load(path)
 
     def test_schema_version_must_be_integer_one(self):
-        for value in ('true', '1.0', '"1"', '2'):
+        for value in ("true", "1.0", '"1"', "2"):
             with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "invalid.toml"
                 path.write_text(f"schema_version = {value}\n", encoding="utf-8")
@@ -197,6 +294,24 @@ base_url = "https://example.test/v1"
             config = Config(providers={"demo": Provider("demo", label, "https://example.test/v1")})
             save(config, path)
             self.assertEqual(load(path).providers["demo"].display_name, label)
+
+    def test_delete_character_stays_loadable_in_config_and_cli_overrides(self):
+        # JSON leaves U+007F raw, which TOML forbids in basic strings.
+        import tomllib
+
+        from codexapter.toml_text import toml_value
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            label = "Demo\x7fprovider"
+            config = Config(providers={"demo": Provider("demo", label, "https://example.test/v1", default_model="model\x7fid")})
+            save(config, path)
+            self.assertNotIn("\x7f", path.read_text(encoding="utf-8"))
+            loaded = load(path).providers["demo"]
+            self.assertEqual((loaded.display_name, loaded.default_model), (label, "model\x7fid"))
+        for ensure_ascii in (False, True):
+            self.assertEqual(tomllib.loads("value = " + toml_value(label, ensure_ascii=ensure_ascii))["value"], label)
+
 
 if __name__ == "__main__":
     unittest.main()
