@@ -214,7 +214,7 @@ try {
     else {
         Write-Host 'CodexApter installation complete.' -ForegroundColor Green
     }
-    Write-Host 'Open a new CMD, PowerShell, or Windows Terminal tab and run: codex-ca setup'
+    Write-Host 'Open a new CMD, PowerShell, or Windows Terminal tab and run: codex-ca (setup opens the first time; codex-ca setup changes providers later)'
 }
 catch {
     Write-Host "`nSetup failed: $($_.Exception.Message)" -ForegroundColor Red
