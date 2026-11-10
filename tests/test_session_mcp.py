@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from codex_adapter.mcp import codex_overrides, load_servers
+from codexapter.mcp import codex_overrides, load_servers
 
 
 def test_mcp_uses_only_explicit_env_names_not_values(tmp_path):

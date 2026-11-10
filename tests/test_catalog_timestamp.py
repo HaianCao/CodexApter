@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from codex_adapter import catalog
-from codex_adapter.config import Config, Provider
+from codexapter import catalog
+from codexapter.config import Config, Provider
 
 
 @pytest.mark.parametrize(

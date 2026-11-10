@@ -3,9 +3,9 @@ import tomllib
 
 import pytest
 
-from codex_adapter import agent_models, launcher
-from codex_adapter.config import Config, Provider, SecretReference, load, save
-from codex_adapter.errors import ConfigError, LaunchError
+from codexapter import agent_models, launcher
+from codexapter.config import Config, Provider, SecretReference, load, save
+from codexapter.errors import ConfigError, LaunchError
 
 
 def make_config(tmp_path, options):
@@ -16,7 +16,7 @@ def make_config(tmp_path, options):
 
 @pytest.mark.parametrize("options", [{}, {"policy": "inherit"}, {"policy": "selected"}, {"policy": "custom", "default": "provider/worker", "effort": "low"}])
 def test_config_roundtrip_and_public_snapshot(tmp_path, monkeypatch, options):
-    from codex_adapter import web
+    from codexapter import web
 
     config, _ = make_config(tmp_path, options)
     save(config)

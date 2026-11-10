@@ -1,6 +1,6 @@
 import pytest
 
-from codex_adapter.catalog import MAX_JSON_DEPTH, _decode_json
+from codexapter.catalog import MAX_JSON_DEPTH, _decode_json
 
 
 def nested(depth):

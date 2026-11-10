@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-PACKAGE = "codex_adapter"
+PACKAGE = "codexapter"
 catalog = importlib.import_module(PACKAGE + ".catalog")
 config_module = importlib.import_module(PACKAGE + ".config")
 credentials = importlib.import_module(PACKAGE + ".credentials")
@@ -70,7 +70,7 @@ def upstream(mode):
 
 
 def fixture_config(tmp_path, monkeypatch, base):
-    codex = PACKAGE == "codex_adapter"
+    codex = PACKAGE == "codexapter"
     prefix = "CODEX_CA" if codex else "CLAUDE_CA"
     monkeypatch.setenv(prefix + "_ENV_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv(prefix + "_CACHE", str(tmp_path / "cache.json"))

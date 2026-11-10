@@ -1,7 +1,7 @@
 import pytest
 
-from codex_adapter.config import Config, Provider
-from codex_adapter.model_selection import model_status
+from codexapter.config import Config, Provider
+from codexapter.model_selection import model_status
 
 
 def test_setup_status_uses_exact_route_and_keeps_missing_evidence_unknown(tmp_path, monkeypatch):

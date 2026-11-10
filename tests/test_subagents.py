@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from codex_adapter import subagents
-from codex_adapter.errors import LaunchError
+from codexapter import subagents
+from codexapter.errors import LaunchError
 
 
 def catalog(tmp_path, **fields):
@@ -93,8 +93,8 @@ def test_custom_child_requires_its_own_exact_catalog_profile_and_effort(tmp_path
 @pytest.mark.parametrize("main,expected", [("main", True), ("worker", False)])
 def test_gateway_blocks_unsafe_reopen_only_when_configured_child_model_differs(main, expected):
     pytest.importorskip("protoverta")
-    from codex_adapter.config import Config, Provider
-    from codex_adapter.launcher import _gateway
+    from codexapter.config import Config, Provider
+    from codexapter.launcher import _gateway
 
     provider = Provider(
         "fixture",
@@ -106,6 +106,6 @@ def test_gateway_blocks_unsafe_reopen_only_when_configured_child_model_differs(m
     )
     from unittest.mock import patch
 
-    with patch("codex_adapter.launcher.resolve_token", return_value="synthetic"):
+    with patch("codexapter.launcher.resolve_token", return_value="synthetic"):
         config, _ = _gateway(Config(), provider, main)
     assert config.codex_model_safe_resume is expected

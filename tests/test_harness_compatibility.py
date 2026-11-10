@@ -5,7 +5,7 @@ import warnings
 
 import pytest
 
-from codex_adapter import harness
+from codexapter import harness
 
 
 def test_legacy_observed_policy_stays_conservative(monkeypatch):
@@ -16,8 +16,8 @@ def test_legacy_observed_policy_stays_conservative(monkeypatch):
 
 
 def test_native_route_does_not_probe_harness_version(monkeypatch):
-    from codex_adapter import launcher
-    from codex_adapter.config import Config, Provider, SecretReference
+    from codexapter import launcher
+    from codexapter.config import Config, Provider, SecretReference
 
     provider = Provider("fixture", "Fixture", "https://example.invalid/v1", auth_secret_ref="main")
     config = Config(providers={"fixture": provider}, secrets={"main": SecretReference("main", env_var="FIXTURE_TOKEN")})
@@ -79,7 +79,7 @@ def test_invalid_version_is_unknown(tmp_path, mode):
 @pytest.mark.parametrize("error", [OSError("synthetic-private"), subprocess.TimeoutExpired("private", 3)])
 def test_failed_or_timed_out_probe_returns_unknown(monkeypatch, error):
     def fail(*args, **kwargs):
-        assert kwargs["timeout"] == 3
+        assert kwargs["timeout"] == harness.VERSION_PROBE_SECONDS
         raise error
 
     monkeypatch.setattr(harness.subprocess, "run", fail)

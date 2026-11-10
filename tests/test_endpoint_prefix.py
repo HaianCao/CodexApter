@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from codex_adapter.config import Config, Provider, load, save, validate_base_url
-from codex_adapter.errors import ConfigError
-from codex_adapter.launcher import build_invocation
+from codexapter.config import Config, Provider, load, save, validate_base_url
+from codexapter.errors import ConfigError
+from codexapter.launcher import build_invocation
 
 
 @pytest.mark.parametrize("suffix", ["responses", "messages", "chat/completions", "responses/", "messages/", "chat/completions/"])
@@ -25,7 +25,7 @@ def test_endpoint_suffix_is_rejected_before_load_save_or_launch(tmp_path, monkey
     def forbidden(*args, **kwargs):
         pytest.fail("invalid prefix must be rejected before reading credentials")
 
-    monkeypatch.setattr("codex_adapter.launcher.resolve_token", forbidden)
+    monkeypatch.setattr("codexapter.launcher.resolve_token", forbidden)
     with pytest.raises(ConfigError, match="endpoint suffix"):
         build_invocation(Config(), provider, "m", "medium", [])
 
@@ -67,7 +67,7 @@ def test_invalid_url_rejected_before_load_save_or_launch(tmp_path, monkeypatch, 
     with pytest.raises(ConfigError):
         save(Config(providers={"fixture": provider}, path=path))
     assert path.read_text() == original
-    monkeypatch.setattr("codex_adapter.launcher.resolve_token", lambda *_: pytest.fail("must reject URL before credential access"))
+    monkeypatch.setattr("codexapter.launcher.resolve_token", lambda *_: pytest.fail("must reject URL before credential access"))
     with pytest.raises(ConfigError):
         build_invocation(Config(), provider, "m", "medium", [])
 

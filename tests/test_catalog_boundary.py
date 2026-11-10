@@ -3,9 +3,9 @@ from http.client import IncompleteRead
 
 import pytest
 
-from codex_adapter import catalog
-from codex_adapter.config import Config, Provider
-from codex_adapter.errors import DiscoveryError
+from codexapter import catalog
+from codexapter.config import Config, Provider
+from codexapter.errors import DiscoveryError
 
 INVALID = [b'{"x":' + b"1" * 5000 + b"}", b'{"x":' + b"[" * 10000 + b"0" + b"]" * 10000 + b"}", b'{"x":"\\ud800"}', b'{"x":NaN}', b'{"x":1e309}', b"{", b"\xff"]
 

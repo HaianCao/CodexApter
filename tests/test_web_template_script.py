@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-TEMPLATE = Path(__file__).resolve().parents[1] / "src" / "codex_adapter" / "web_template.html"
+TEMPLATE = Path(__file__).resolve().parents[1] / "src" / "codexapter" / "web_template.html"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is not installed")

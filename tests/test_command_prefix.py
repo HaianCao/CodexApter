@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from codex_adapter.command import command_prefix
+from codexapter.command import command_prefix
 
 COMMAND = "codex"
 PACKAGE = "@openai/codex"
@@ -38,7 +38,7 @@ def test_unknown_batch_shim_is_refused_without_execution(tmp_path, extension):
 def test_supported_npm_entry_preserves_real_subprocess_argv(tmp_path, monkeypatch, binding):
     shim, _root, entry, metadata = npm_fixture(tmp_path)
     metadata.write_text(json.dumps({"name": PACKAGE, "bin": binding}), encoding="utf-8")
-    monkeypatch.setattr("codex_adapter.command.shutil.which", lambda name: sys.executable)
+    monkeypatch.setattr("codexapter.command.shutil.which", lambda name: sys.executable)
     prefix = command_prefix(str(shim), COMMAND, PACKAGE)
     assert prefix == [sys.executable, str(entry.resolve())]
     # Native Python stands in for the trusted Node interpreter. This tests the
@@ -78,7 +78,7 @@ def test_unverified_or_unsafe_npm_layout_is_refused(tmp_path, monkeypatch, mutat
     elif mutation == "batch_node":
         node = str(tmp_path / "node.cmd")
     metadata.write_text("{" if mutation == "bad_json" else " " * 65537 if mutation == "oversized_json" else json.dumps(body), encoding="utf-8")
-    monkeypatch.setattr("codex_adapter.command.shutil.which", lambda name: node)
+    monkeypatch.setattr("codexapter.command.shutil.which", lambda name: node)
     with pytest.raises(ValueError, match="Cannot safely run"):
         command_prefix(str(shim), COMMAND, PACKAGE)
 
@@ -96,7 +96,7 @@ def test_standard_local_node_modules_bin_layout(tmp_path, monkeypatch):
     local = tmp_path / "node_modules" / ".bin" / shim.name
     local.parent.mkdir()
     shim.rename(local)
-    monkeypatch.setattr("codex_adapter.command.shutil.which", lambda name: sys.executable)
+    monkeypatch.setattr("codexapter.command.shutil.which", lambda name: sys.executable)
     assert command_prefix(str(local), COMMAND, PACKAGE) == [sys.executable, str(entry.resolve())]
 
 
@@ -104,8 +104,8 @@ def test_standard_local_node_modules_bin_layout(tmp_path, monkeypatch):
 def test_real_invocation_builder_preserves_model_and_prompt_without_batch_shell(tmp_path, monkeypatch, gateway):
     from types import SimpleNamespace
 
-    from codex_adapter import launcher
-    from codex_adapter.config import Config, Provider
+    from codexapter import launcher
+    from codexapter.config import Config, Provider
 
     shim, _root, entry, _metadata = npm_fixture(tmp_path)
     monkeypatch.setattr(launcher.shutil, "which", lambda name: str(shim) if name == COMMAND else sys.executable)
@@ -126,9 +126,9 @@ def test_real_invocation_builder_preserves_model_and_prompt_without_batch_shell(
 
 
 def test_unknown_batch_shim_is_a_typed_launch_failure(tmp_path, monkeypatch):
-    from codex_adapter import launcher
-    from codex_adapter.config import Config, Provider
-    from codex_adapter.errors import LaunchError
+    from codexapter import launcher
+    from codexapter.config import Config, Provider
+    from codexapter.errors import LaunchError
 
     shim = tmp_path / (COMMAND + ".cmd")
     shim.write_text("@echo off\necho SHIM_EXECUTED\n", encoding="ascii")
@@ -141,9 +141,9 @@ def test_unknown_batch_shim_is_a_typed_launch_failure(tmp_path, monkeypatch):
 def test_nul_arguments_are_typed_errors_before_starting_process(tmp_path, monkeypatch, model, extra):
     from types import SimpleNamespace
 
-    from codex_adapter import launcher
-    from codex_adapter.config import Config, Provider
-    from codex_adapter.errors import LaunchError
+    from codexapter import launcher
+    from codexapter.config import Config, Provider
+    from codexapter.errors import LaunchError
 
     monkeypatch.setattr(launcher.shutil, "which", lambda name: COMMAND + ".exe")
     monkeypatch.setattr(launcher, "resolve_token", lambda *args, **kwargs: "synthetic-only")

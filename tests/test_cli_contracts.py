@@ -4,9 +4,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from codex_adapter import cli
-from codex_adapter.config import Config, Defaults, Provider
-from codex_adapter.errors import LaunchError as ClientError
+from codexapter import cli
+from codexapter.config import Config, Defaults, Provider
+from codexapter.errors import LaunchError as ClientError
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def test_cli_contains_launch_failure_and_interrupt(configured, monkeypatch, erro
 def test_route_doctor_opt_in_is_required_before_dispatch(configured, monkeypatch):
     certification = pytest.importorskip("protoverta.certification")
 
-    from codex_adapter import route_doctor
+    from codexapter import route_doctor
 
     config, provider = configured
     provider.execution_mode = "gateway"
@@ -64,7 +64,7 @@ def test_route_doctor_opt_in_is_required_before_dispatch(configured, monkeypatch
 def test_route_doctor_does_not_overwrite_report(configured, monkeypatch, tmp_path):
     certification = pytest.importorskip("protoverta.certification")
 
-    from codex_adapter import route_doctor
+    from codexapter import route_doctor
 
     config, provider = configured
     provider.execution_mode = "gateway"

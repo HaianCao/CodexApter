@@ -177,7 +177,7 @@ try {
             $gatewayPackages += $protovertaAsset
         }
     }
-    $candidate = New-AdapterEnvironment -Root $installRoot -Python $pythonExe -Target $installTarget -GatewayPackages $gatewayPackages -Module 'codex_adapter' -Command 'codex-ca'
+    $candidate = New-AdapterEnvironment -Root $installRoot -Python $pythonExe -Target $installTarget -GatewayPackages $gatewayPackages -Module 'codexapter' -Command 'codex-ca'
     Set-AdapterCurrentEnvironment $installRoot $candidate.Id
     Add-UserPath $candidate.Bin
     $codexCaExe = $candidate.Launcher

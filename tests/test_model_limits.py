@@ -2,9 +2,9 @@
 
 import pytest
 
-from codex_adapter import launcher
-from codex_adapter.config import DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS, Config, Provider, SecretReference, load, save, validate_model_limits
-from codex_adapter.errors import ConfigError
+from codexapter import launcher
+from codexapter.config import DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS, Config, Provider, SecretReference, load, save, validate_model_limits
+from codexapter.errors import ConfigError
 
 
 def _config(tmp_path, **options):
@@ -38,7 +38,7 @@ def test_invalid_model_limits_are_rejected(value):
 
 
 def test_reported_context_window_is_used_when_the_provider_sets_none(tmp_path, monkeypatch):
-    from codex_adapter import catalog
+    from codexapter import catalog
 
     config, provider = _config(tmp_path)
     monkeypatch.setattr(launcher.shutil, "which", lambda _: "codex.exe")
@@ -55,8 +55,8 @@ def test_direct_catalog_records_reported_limits(tmp_path, monkeypatch):
     import io
     import json
 
-    from codex_adapter import catalog
-    from codex_adapter.config import Discovery
+    from codexapter import catalog
+    from codexapter.config import Discovery
 
     config, provider = _config(tmp_path, discovery=Discovery(enabled=True))
     body = {"data": [{"id": "vendor/model", "context_length": 262144, "top_provider": {"max_completion_tokens": 32768}}, {"id": "plain/model"}]}

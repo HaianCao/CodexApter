@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from codex_adapter.web import _HTML
+from codexapter.web import _HTML
 
 
 def test_model_selection_tracks_provider_without_restricting_manual_entry():

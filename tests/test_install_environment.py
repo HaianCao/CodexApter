@@ -14,7 +14,7 @@ import pytest
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows installer")
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["name"]
-MODULE, COMMAND = {"codexapter": ("codex_adapter", "codex-ca"), "claudapter": ("claudapter", "claude-ca")}[PROJECT]
+MODULE, COMMAND = {"codexapter": ("codexapter", "codex-ca"), "claudapter": ("claudapter", "claude-ca")}[PROJECT]
 HELPER = ROOT / "scripts" / "install-environment.ps1"
 
 HARNESS = r"""

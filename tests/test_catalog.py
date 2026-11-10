@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_adapter.catalog import _NoRedirect, _open, cached_models, fetch_models
-from codex_adapter.config import Config, Discovery, Provider
-from codex_adapter.errors import DiscoveryError
+from codexapter.catalog import _NoRedirect, _open, cached_models, fetch_models
+from codexapter.config import Config, Discovery, Provider
+from codexapter.errors import DiscoveryError
 
 
 class _Response:
@@ -29,7 +29,7 @@ class CatalogTests(unittest.TestCase):
 
         request = Mock()
         self.assertIsNone(_NoRedirect().redirect_request(request, None, 302, "Found", {}, "https://other.test"))
-        with patch("codex_adapter.catalog.build_opener") as build:
+        with patch("codexapter.catalog.build_opener") as build:
             _open(request, timeout=1)
             self.assertIsInstance(build.call_args.args[0], _NoRedirect)
             build.return_value.open.assert_called_once_with(request, timeout=1)
@@ -38,7 +38,7 @@ class CatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory) / "catalog.json"
             provider = Provider("demo", "Demo", "https://example.test/v1", discovery=Discovery(enabled=True))
-            with patch("codex_adapter.catalog._open", return_value=_Response(b'{"data":[{"id":"m"}]}')):
+            with patch("codexapter.catalog._open", return_value=_Response(b'{"data":[{"id":"m"}]}')):
                 fetch_models(Config(), provider, cache=cache)
             self.assertEqual(cached_models(provider, cache), (["m"], False))
             provider.base_url = "https://new.test/v1"
@@ -69,7 +69,7 @@ class CatalogTests(unittest.TestCase):
             cache = Path(directory) / "catalog.json"
             provider = Provider("demo", "Demo", "https://example.test/v1", discovery=Discovery(enabled=True))
             payload = json.dumps({"data": [{"id": " model-b "}, {"id": "model-a"}, {"id": "model-a"}]}).encode()
-            with patch("codex_adapter.catalog._open", return_value=_Response(payload)) as open_url:
+            with patch("codexapter.catalog._open", return_value=_Response(payload)) as open_url:
                 models = fetch_models(Config(providers={"demo": provider}), provider, cache=cache)
             self.assertEqual(models, ["model-a", "model-b"])
             self.assertEqual(open_url.call_args.args[0].full_url, "https://example.test/v1/models")
@@ -84,7 +84,7 @@ class CatalogTests(unittest.TestCase):
 
     def test_oversized_catalog_response_is_rejected(self):
         provider = Provider("demo", "Demo", "https://example.test/v1", discovery=Discovery(enabled=True))
-        with patch("codex_adapter.catalog._open", return_value=_Response(b"x" * 8_000_001)), self.assertRaises(DiscoveryError):
+        with patch("codexapter.catalog._open", return_value=_Response(b"x" * 8_000_001)), self.assertRaises(DiscoveryError):
             fetch_models(Config(providers={"demo": provider}), provider)
 
 

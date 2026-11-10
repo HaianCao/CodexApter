@@ -10,14 +10,14 @@ from urllib.request import Request, urlopen
 import pytest
 from test_web_boundary import listener
 
-PACKAGE = "codex_adapter"
+PACKAGE = "codexapter"
 web = importlib.import_module(PACKAGE + ".web")
 catalog = importlib.import_module(PACKAGE + ".catalog")
 
 
 @pytest.mark.parametrize("change", ["provider", "key", "mode", "delete", "external", "default", "run"])
 def test_refresh_is_unlocked_and_late_cache_is_identity_checked(tmp_path, monkeypatch, change):
-    codex = PACKAGE == "codex_adapter"
+    codex = PACKAGE == "codexapter"
     monkeypatch.setattr(PACKAGE + ".launcher.shutil.which", lambda _: None)
     monkeypatch.setenv(("CODEX_CA" if codex else "CLAUDE_CA") + "_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("FIXTURE_TOKEN", "synthetic-original")

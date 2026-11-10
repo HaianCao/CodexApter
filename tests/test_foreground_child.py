@@ -5,7 +5,7 @@ import subprocess
 import sys
 import threading
 
-from codex_adapter.command import foreground_child
+from codexapter.command import foreground_child
 
 
 def test_sigint_during_child_does_not_interrupt_wrapper_and_handler_is_restored():

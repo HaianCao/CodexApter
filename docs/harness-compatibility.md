@@ -1,7 +1,7 @@
 # Harness compatibility profiles
 
 Translated Chat/Messages routes use a version-scoped policy in
-`codex_adapter.harness`. Codex 0.166.0 retains `features.multi_agent=false` and
+`codexapter.harness`. Codex 0.166.0 retains `features.multi_agent=false` and
 adds `agents.enabled=false`; 0.164.0 keeps the historical controls. Summary
 generation and hosted web search remain disabled on these routes.
 

@@ -3,9 +3,9 @@ from unittest.mock import patch
 
 import pytest
 
-from codex_adapter.config import Config, Provider, load, save
-from codex_adapter.errors import ConfigError
-from codex_adapter.gateway_options import (
+from codexapter.config import Config, Provider, load, save
+from codexapter.errors import ConfigError
+from codexapter.gateway_options import (
     catalog_policy_fingerprint,
     diagnostic_report,
     diagnostics_path,
@@ -13,7 +13,7 @@ from codex_adapter.gateway_options import (
     session_options,
     validate_gateway_runtime,
 )
-from codex_adapter.route_doctor import route_doctor
+from codexapter.route_doctor import route_doctor
 
 
 def provider():
@@ -59,7 +59,7 @@ def test_route_doctor_no_live_flag_never_invokes_provider(tmp_path):
     pytest.importorskip("protoverta")
     item = provider()
     config = Config(providers={"demo": item}, path=tmp_path / "config.toml")
-    with patch("codex_adapter.route_doctor._gateway", return_value=(object(), None)), patch("protoverta.certification.check_route") as checked:
+    with patch("codexapter.route_doctor._gateway", return_value=(object(), None)), patch("protoverta.certification.check_route") as checked:
         result = route_doctor(config, item, "m")
     checked.assert_not_called()
     assert result[0]["requests"] == 0 and not result[0]["passed"]

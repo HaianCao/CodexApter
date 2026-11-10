@@ -10,10 +10,10 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-PACKAGE = "codex_adapter"
+PACKAGE = "codexapter"
 catalog = importlib.import_module(PACKAGE + ".catalog")
 configuration = importlib.import_module(PACKAGE + ".config")
-CODEX = PACKAGE == "codex_adapter"
+CODEX = PACKAGE == "codexapter"
 VERSION = "2023-06-01"
 
 

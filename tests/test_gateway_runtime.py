@@ -3,10 +3,10 @@ from unittest.mock import patch
 
 import pytest
 
-from codex_adapter.config import Config, Provider, load, save
-from codex_adapter.errors import ConfigError
-from codex_adapter.gateway_options import runtime_options, validate_gateway_runtime
-from codex_adapter.launcher import _gateway
+from codexapter.config import Config, Provider, load, save
+from codexapter.errors import ConfigError
+from codexapter.gateway_options import runtime_options, validate_gateway_runtime
+from codexapter.launcher import _gateway
 
 
 @pytest.mark.parametrize(
@@ -46,7 +46,7 @@ def test_runtime_options_reach_actual_core(tmp_path):
     provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat", execution_mode="gateway")
     provider.gateway_runtime = {"shared_admission_db": "budget.sqlite", "retry_attempts": 2}
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
-    with patch("codex_adapter.launcher.resolve_token", return_value="fixture"):
+    with patch("codexapter.launcher.resolve_token", return_value="fixture"):
         gateway, _ = _gateway(config, provider)
     assert gateway.retry_attempts == 2
     assert gateway.shared_admission_db == str((tmp_path / "budget.sqlite").resolve())

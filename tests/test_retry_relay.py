@@ -12,11 +12,11 @@ from unittest.mock import patch
 
 from protoverta.error_classes import RetryPolicy
 
-from codex_adapter.config import Config, Provider, SecretReference, load, retry_policy, save
-from codex_adapter.errors import ConfigError
-from codex_adapter.launcher import build_invocation
-from codex_adapter.retry_log import RetryLog
-from codex_adapter.retry_relay import RetryRelay
+from codexapter.config import Config, Provider, SecretReference, load, retry_policy, save
+from codexapter.errors import ConfigError
+from codexapter.launcher import build_invocation
+from codexapter.retry_log import RetryLog
+from codexapter.retry_relay import RetryRelay
 
 AZURE = b'{"error":{"message":"The requested item was created under a different Azure OpenAI resource.","type":"invalid_request_error","param":"","code":null}}'
 NO_CHANNEL = '{"error":{"message":"当前分组 default 下对于模型 x 无可用渠道","type":"new_api_error"}}'.encode()
@@ -140,7 +140,7 @@ class RetryConfigTests(unittest.TestCase):
     def test_codex_points_at_the_relay_with_one_retry_layer(self):
         provider = Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")
         config = Config(providers={"demo": provider}, secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_KEY")})
-        with patch("codex_adapter.launcher.shutil.which", return_value="codex.exe"), patch.dict("os.environ", {"DEMO_KEY": "secret"}):
+        with patch("codexapter.launcher.shutil.which", return_value="codex.exe"), patch.dict("os.environ", {"DEMO_KEY": "secret"}):
             relayed, _ = build_invocation(config, provider, "m", "medium", [], relay_url="http://127.0.0.1:5000/v1")
             plain, _ = build_invocation(config, provider, "m", "medium", [])
         self.assertIn('model_providers.demo.base_url="http://127.0.0.1:5000/v1"', relayed)

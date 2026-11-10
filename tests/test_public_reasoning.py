@@ -4,10 +4,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from codex_adapter.config import Config, Provider, load, save, validate_public_reasoning
-from codex_adapter.errors import ConfigError
-from codex_adapter.launcher import _gateway
-from codex_adapter.web import public_config
+from codexapter.config import Config, Provider, load, save, validate_public_reasoning
+from codexapter.errors import ConfigError
+from codexapter.launcher import _gateway
+from codexapter.web import public_config
 
 
 def test_unsigned_public_reasoning_is_explicit_persistent_and_forwarded(tmp_path):
@@ -23,7 +23,7 @@ def test_unsigned_public_reasoning_is_explicit_persistent_and_forwarded(tmp_path
     server.GatewayConfig, server.gateway_session = Mock(), Mock()
     with (
         patch.dict(sys.modules, {"protoverta.core": core, "protoverta.server": server}),
-        patch("codex_adapter.launcher.resolve_token", return_value="synthetic-key"),
+        patch("codexapter.launcher.resolve_token", return_value="synthetic-key"),
     ):
         _gateway(config, provider)
     assert server.GatewayConfig.call_args.kwargs["public_reasoning"] is True

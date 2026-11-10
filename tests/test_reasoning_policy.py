@@ -7,10 +7,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from codex_adapter.config import Config, Provider, load, save
-from codex_adapter.errors import LaunchError
-from codex_adapter.launcher import _gateway, build_invocation
-from codex_adapter.web import public_config
+from codexapter.config import Config, Provider, load, save
+from codexapter.errors import LaunchError
+from codexapter.launcher import _gateway, build_invocation
+from codexapter.web import public_config
 
 
 @pytest.mark.parametrize("protocol,public,output", [("chat", True, "omit"), ("messages", False, "omit"), ("responses", False, "reject")])
@@ -18,7 +18,7 @@ def test_auto_reasoning_uses_the_route_without_mutating_provider(tmp_path, monke
     pytest.importorskip("protoverta.automatic_reasoning")
     provider = Provider("demo", "Demo", "https://example.test/v1", protocol=protocol, execution_mode="gateway", upstream_reasoning="auto")
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
-    monkeypatch.setattr("codex_adapter.launcher.resolve_token", lambda *_: "synthetic")
+    monkeypatch.setattr("codexapter.launcher.resolve_token", lambda *_: "synthetic")
     gateway, _ = _gateway(config, provider)
     # Live checks: a disable request is rejected or ignored by many models.
     assert gateway.upstream_reasoning == "provider_default"
@@ -52,7 +52,7 @@ class ReasoningPolicyTests(unittest.TestCase):
         server.GatewayConfig, server.gateway_session = gateway_config, Mock()
         with (
             patch.dict(sys.modules, {"protoverta.core": core, "protoverta.server": server}),
-            patch("codex_adapter.launcher.resolve_token", return_value="fake"),
+            patch("codexapter.launcher.resolve_token", return_value="fake"),
         ):
             _gateway(Config(), provider)
         self.assertEqual(gateway_config.call_args.kwargs["upstream_reasoning"], "openrouter_disabled")
@@ -62,7 +62,7 @@ def test_auto_reasoning_falls_back_on_cores_without_the_policy_module(monkeypatc
     # A launcher update can meet an older installed core (upgrade gate: a6).
     import sys
 
-    from codex_adapter import launcher
+    from codexapter import launcher
 
     monkeypatch.setitem(sys.modules, "protoverta.automatic_reasoning", None)
     assert launcher._automatic_reasoning(None, "https://example.test/v1") == ("provider_default", False, None)

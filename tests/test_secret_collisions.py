@@ -10,9 +10,9 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from codex_adapter.config import Config, Provider, SecretReference, load, save
-from codex_adapter.errors import ConfigError
-from codex_adapter.web import _new_secret_names, persist_change, serve
+from codexapter.config import Config, Provider, SecretReference, load, save
+from codexapter.errors import ConfigError
+from codexapter.web import _new_secret_names, persist_change, serve
 
 
 @pytest.mark.parametrize("env", ["TEST_A_TOKEN", "test_a_token"])
@@ -33,7 +33,7 @@ def test_duplicate_secret_environment_names_are_rejected_before_key_write(tmp_pa
     config.path.write_bytes(b"prior config")
     config.env_file.write_bytes(b"prior secrets")
     updated = Config(path=config.path, secrets={"one": SecretReference("one", env_var="DEMO_TOKEN"), "two": SecretReference("two", env_var="demo_token")})
-    with patch("codex_adapter.web.store_token") as store, pytest.raises(ConfigError, match="same environment"):
+    with patch("codexapter.web.store_token") as store, pytest.raises(ConfigError, match="same environment"):
         persist_change(config, updated, "DEMO_TOKEN", "fixture")
     store.assert_not_called()
     assert config.path.read_bytes() == b"prior config"
@@ -67,8 +67,8 @@ def test_setup_api_collision_does_not_change_first_provider_key(tmp_path):
 
     with (
         patch.dict(os.environ, {"CODEX_CA_ENV_FILE": str(config.env_file), "TEST_A_TOKEN": "fixture-process-before"}),
-        patch("codex_adapter.web.ThreadingHTTPServer", side_effect=server_factory),
-        patch("codex_adapter.web.webbrowser.open", side_effect=opened.put),
+        patch("codexapter.web.ThreadingHTTPServer", side_effect=server_factory),
+        patch("codexapter.web.webbrowser.open", side_effect=opened.put),
     ):
         worker = threading.Thread(target=serve, args=(config,), daemon=True)
         worker.start()

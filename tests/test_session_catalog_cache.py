@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from codex_adapter.catalog import _identity, cached_model_names
-from codex_adapter.config import Config, Provider
+from codexapter.catalog import _identity, cached_model_names
+from codexapter.config import Config, Provider
 
 
 @pytest.mark.parametrize("change", ["fresh", "stale", "credential", "identity", "bad_name", "invalid", "oversize"])

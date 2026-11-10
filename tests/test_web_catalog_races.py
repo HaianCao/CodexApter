@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from codex_adapter.web import _HTML
+from codexapter.web import _HTML
 
 
 @pytest.mark.parametrize("scenario", ["load", "refresh", "stale_error", "deselect"])

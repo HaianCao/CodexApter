@@ -40,17 +40,17 @@ test = ["pytest>=8.0"]
 gateway = []
 
 [project.scripts]
-codex-ca = "codex_adapter.cli:main"
+codex-ca = "codexapter.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/codex_adapter"]
+packages = ["src/codexapter"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/codex_adapter/web_template.html" = "codex_adapter/web_template.html"
-"assets/CodexApter_white.png" = "codex_adapter/assets/CodexApter_white.png"
-"assets/CodexApter_black.png" = "codex_adapter/assets/CodexApter_black.png"
-"assets/CodexApter_white_icon.png" = "codex_adapter/assets/CodexApter_white_icon.png"
-"assets/CodexApter_black_icon.png" = "codex_adapter/assets/CodexApter_black_icon.png"
+"src/codexapter/web_template.html" = "codexapter/web_template.html"
+"assets/CodexApter_white.png" = "codexapter/assets/CodexApter_white.png"
+"assets/CodexApter_black.png" = "codexapter/assets/CodexApter_black.png"
+"assets/CodexApter_white_icon.png" = "codexapter/assets/CodexApter_white_icon.png"
+"assets/CodexApter_black_icon.png" = "codexapter/assets/CodexApter_black_icon.png"
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/assets", "/pyproject.toml", "/README.md", "/LICENSE"]

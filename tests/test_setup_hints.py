@@ -1,4 +1,4 @@
-from codex_adapter.web import _HTML
+from codexapter.web import _HTML
 
 
 def test_setup_shows_persistent_url_example_and_bearer_recommendation():

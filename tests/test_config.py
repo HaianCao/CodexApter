@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_adapter.config import (
+from codexapter.config import (
     Config,
     Defaults,
     Discovery,
@@ -18,13 +18,13 @@ from codex_adapter.config import (
     save,
     validate_base_url,
 )
-from codex_adapter.credentials import (
+from codexapter.credentials import (
     env_file_path,
     remove_token,
     resolve_token,
     store_token,
 )
-from codex_adapter.errors import ConfigError
+from codexapter.errors import ConfigError
 
 
 class ConfigTests(unittest.TestCase):
@@ -299,7 +299,7 @@ base_url = "https://example.test/v1"
         # JSON leaves U+007F raw, which TOML forbids in basic strings.
         import tomllib
 
-        from codex_adapter.toml_text import toml_value
+        from codexapter.toml_text import toml_value
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.toml"

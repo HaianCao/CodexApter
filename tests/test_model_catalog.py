@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from codex_adapter.errors import LaunchError
-from codex_adapter.model_catalog import catalog_override
+from codexapter.errors import LaunchError
+from codexapter.model_catalog import catalog_override
 
 
 def native_model():
@@ -73,7 +73,7 @@ def test_invalid_native_metadata_rejected_before_harness(tmp_path, change):
 
 
 def test_catalog_version_gate(tmp_path, monkeypatch):
-    from codex_adapter import harness
+    from codexapter import harness
 
     path = tmp_path / "model.json"
     path.write_text(json.dumps({"models": [native_model()]}), encoding="utf-8")

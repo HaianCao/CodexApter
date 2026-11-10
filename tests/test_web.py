@@ -9,7 +9,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from codex_adapter.config import (
+from codexapter.config import (
     Config,
     Defaults,
     ModelAlias,
@@ -17,7 +17,7 @@ from codex_adapter.config import (
     SecretReference,
     load,
 )
-from codex_adapter.web import (
+from codexapter.web import (
     _HTML,
     _default_secret_names,
     _remove_provider_config,
@@ -31,7 +31,7 @@ class WebConfigTests(unittest.TestCase):
         import copy
         import os
 
-        from codex_adapter.credentials import store_token
+        from codexapter.credentials import store_token
 
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
             config = Config(
@@ -41,7 +41,7 @@ class WebConfigTests(unittest.TestCase):
             before = config.env_file.read_bytes()
             updated = copy.deepcopy(config)
             updated.providers["demo"].display_name = "Changed"
-            with patch("codex_adapter.web.save", side_effect=OSError("disk failure")), self.assertRaises(OSError):
+            with patch("codexapter.web.save", side_effect=OSError("disk failure")), self.assertRaises(OSError):
                 persist_change(config, updated, "DEMO_TOKEN", "fixture-new")
             self.assertEqual(config.providers["demo"].display_name, "Old")
             self.assertEqual(config.env_file.read_bytes(), before)
@@ -105,9 +105,9 @@ class WebConfigTests(unittest.TestCase):
                 return 0
 
             with (
-                patch("codex_adapter.web.webbrowser.open", side_effect=opened.put),
-                patch("codex_adapter.web.preflight", return_value=None),
-                patch("codex_adapter.web.launch", side_effect=fake_launch),
+                patch("codexapter.web.webbrowser.open", side_effect=opened.put),
+                patch("codexapter.web.preflight", return_value=None),
+                patch("codexapter.web.launch", side_effect=fake_launch),
             ):
                 setup_thread = threading.Thread(target=lambda: result.setdefault("code", serve(config)))
                 setup_thread.start()

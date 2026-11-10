@@ -4,10 +4,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from codex_adapter.config import Config, Provider, load, save
-from codex_adapter.errors import ConfigError, LaunchError
-from codex_adapter.launcher import _gateway, _verify_capabilities, preflight
-from codex_adapter.web import public_config
+from codexapter.config import Config, Provider, load, save
+from codexapter.errors import ConfigError, LaunchError
+from codexapter.launcher import _gateway, _verify_capabilities, preflight
+from codexapter.web import public_config
 
 
 def test_registry_settings_persist_and_require_gateway(tmp_path):
@@ -44,7 +44,7 @@ def test_registry_path_is_resolved_relative_to_configuration_not_working_directo
     capabilities.CapabilityRegistry = Mock()
     with (
         patch.dict(sys.modules, {"protoverta.core": core, "protoverta.server": server, "protoverta.capabilities": capabilities}),
-        patch("codex_adapter.launcher.resolve_token", return_value="fixture-key"),
+        patch("codexapter.launcher.resolve_token", return_value="fixture-key"),
     ):
         _gateway(config, provider)
     capabilities.CapabilityRegistry.load.assert_called_once_with(tmp_path / "checks.json")
@@ -66,8 +66,8 @@ def test_failed_preflight_does_not_open_listener_or_launch_cli():
     )
     listener = Mock()
     with (
-        patch("codex_adapter.launcher._gateway", return_value=(gateway, listener)),
-        patch("codex_adapter.launcher.build_invocation") as build,
+        patch("codexapter.launcher._gateway", return_value=(gateway, listener)),
+        patch("codexapter.launcher.build_invocation") as build,
         pytest.raises(LaunchError, match="unsupported=streaming"),
     ):
         preflight(Config(), provider, "model-a", "medium")

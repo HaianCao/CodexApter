@@ -5,8 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from codex_adapter.config import Config, Provider, SecretReference
-from codex_adapter.diagnostics import probe_responses
+from codexapter.config import Config, Provider, SecretReference
+from codexapter.diagnostics import probe_responses
 
 
 class _Response:
@@ -33,7 +33,7 @@ class DiagnosticsTests(unittest.TestCase):
                 secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_TOKEN")},
                 env_file=env_path,
             )
-            with patch("codex_adapter.diagnostics._open", return_value=_Response()) as open_url:
+            with patch("codexapter.diagnostics._open", return_value=_Response()) as open_url:
                 result = probe_responses(config, provider, "sample-model")
             request = open_url.call_args.args[0]
             self.assertEqual(request.full_url, "https://example.test/v1/responses")
@@ -51,7 +51,7 @@ class DiagnosticsTests(unittest.TestCase):
     def test_probe_reports_http_status_without_echoing_response_body(self):
         provider = Provider("demo", "Demo", "https://example.test/v1")
         error = HTTPError("https://example.test/v1/responses", 404, "Not Found", {}, None)
-        with patch("codex_adapter.diagnostics._open", side_effect=error):
+        with patch("codexapter.diagnostics._open", side_effect=error):
             result = probe_responses(Config(providers={"demo": provider}), provider, "model")
         self.assertEqual(result, "FAIL: HTTP 404 from /responses.")
 

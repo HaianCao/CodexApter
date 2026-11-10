@@ -15,10 +15,10 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from codex_adapter import web
-from codex_adapter.config import Config
-from codex_adapter.web_http import SetupHTTPServer
-from codex_adapter.web_security import token_matches
+from codexapter import web
+from codexapter.config import Config
+from codexapter.web_http import SetupHTTPServer
+from codexapter.web_security import token_matches
 
 
 @contextmanager
@@ -163,7 +163,7 @@ class Block(importlib.abc.MetaPathFinder):
         if fullname == 'protoverta' or fullname.startswith('protoverta.'):
             raise ImportError('optional core blocked for direct-only test')
 sys.meta_path.insert(0,Block())
-import codex_adapter.web
+import codexapter.web
 """
     subprocess.run([sys.executable, "-c", code], check=True, timeout=15)
 

@@ -4,9 +4,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from codex_adapter import web
-from codex_adapter.config import Config
-from codex_adapter.settings_store import SettingsGuard, atomic_bytes
+from codexapter import web
+from codexapter.config import Config
+from codexapter.settings_store import SettingsGuard, atomic_bytes
 
 
 @pytest.fixture
