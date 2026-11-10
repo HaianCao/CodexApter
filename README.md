@@ -98,7 +98,7 @@ limit (previously 4096, which truncated long edits).
 
 Tested providers (OpenRouter, NVIDIA NIM, TokenHarbor, AgentRouter), their known limits and recommended settings: [provider compatibility](https://github.com/HaianCao/Protoverta/blob/main/docs/compatibility/providers.md).
 
-CodexApter **0.2.0rc1** installs [Protoverta](https://github.com/HaianCao/Protoverta) **0.3.0rc1**; the installer verifies the gateway wheel's SHA-256 before installing it.
+CodexApter **0.2.0** installs [Protoverta](https://github.com/HaianCao/Protoverta) **0.3.0**; the installer verifies the gateway wheel's SHA-256 before installing it.
 
 Under **Advanced: model compatibility checks**, you can select a local capability
 registry file and require verified capabilities. Relative paths start at the
