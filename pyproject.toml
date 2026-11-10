@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -35,7 +35,7 @@ Issues = "https://github.com/HaianCao/CodexApter/issues"
 Changelog = "https://github.com/HaianCao/CodexApter/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-test = ["pytest>=8.0"]
+test = ["pytest>=8", "ruff==0.17.2"]
 # Kept so older install commands that request the extra keep working.
 gateway = []
 
@@ -53,12 +53,13 @@ packages = ["src/codexapter"]
 "assets/CodexApter_black_icon.png" = "codexapter/assets/CodexApter_black_icon.png"
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/assets", "/pyproject.toml", "/README.md", "/LICENSE"]
+include = ["/src", "/assets", "/tests", "/configs", "/scripts", "/pyproject.toml", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [tool.ruff]
 # Formatter width; long literals that cannot wrap are left as written.
 line-length = 160
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-q"
