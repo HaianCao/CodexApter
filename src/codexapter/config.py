@@ -454,7 +454,8 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
     if not isinstance(retry, dict):
         raise ConfigError("[retry] must be a TOML table.")
     config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None, retry)
-    retry_policy(config)
+    if RetryPolicy is not None:  # Without the core, launching reports the repair step.
+        retry_policy(config)
     validate_secret_names(config)
     if defaults.provider and defaults.provider not in providers:
         raise ConfigError(f"defaults.provider references missing provider '{defaults.provider}'.")

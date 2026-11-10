@@ -137,6 +137,16 @@ class RetryConfigTests(unittest.TestCase):
                 with self.subTest(table=table), self.assertRaises(ConfigError):
                     load(path)
 
+    def test_config_still_loads_when_the_core_is_missing(self):
+        # The setup page must open to repair a broken install; launching says how.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text("schema_version = 1\n\n[retry]\nmax_retries = 3\n", encoding="utf-8")
+            with patch("codexapter.config.RetryPolicy", None):
+                config = load(path)
+                with self.assertRaisesRegex(ConfigError, "installer"):
+                    retry_policy(config)
+
     def test_codex_points_at_the_relay_with_one_retry_layer(self):
         provider = Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")
         config = Config(providers={"demo": provider}, secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_KEY")})
