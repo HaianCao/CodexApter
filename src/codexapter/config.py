@@ -27,6 +27,12 @@ _MODES = {"auto", "direct", "gateway"}
 _REASONING_EFFORTS = {"low", "medium", "high"}
 
 
+def _xdg_home(variable: str, default: str) -> Path:
+    """An XDG base directory (Linux/macOS); relative values are ignored as the spec requires."""
+    value = os.environ.get(variable, "")
+    return Path(value) if value and os.path.isabs(value) else Path.home() / default
+
+
 def config_path() -> Path:
     override = os.environ.get("CODEX_CA_CONFIG")
     if override:
@@ -34,7 +40,7 @@ def config_path() -> Path:
     appdata = os.environ.get("APPDATA")
     if appdata:
         return Path(appdata) / "codexapter" / "config.toml"
-    return Path.home() / ".config" / "codexapter" / "config.toml"
+    return _xdg_home("XDG_CONFIG_HOME", ".config") / "codexapter" / "config.toml"
 
 
 def cache_path() -> Path:
@@ -44,7 +50,7 @@ def cache_path() -> Path:
     local = os.environ.get("LOCALAPPDATA")
     if local:
         return Path(local) / "codexapter" / "catalog-cache.json"
-    return Path.home() / ".cache" / "codexapter" / "catalog-cache.json"
+    return _xdg_home("XDG_CACHE_HOME", ".cache") / "codexapter" / "catalog-cache.json"
 
 
 def _migrate_legacy_config(target: Path) -> Path:
