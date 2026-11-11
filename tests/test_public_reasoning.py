@@ -11,7 +11,9 @@ from codexapter.web import public_config
 
 
 def test_unsigned_public_reasoning_is_explicit_persistent_and_forwarded(tmp_path):
-    provider = Provider("nim", "NIM", "https://example.test/v1", protocol="chat", execution_mode="gateway", public_reasoning=True)
+    provider = Provider(
+        "nim", "NIM", "https://example.test/v1", protocol="chat", execution_mode="gateway", public_reasoning=True
+    )
     config = Config(providers={"nim": provider}, path=tmp_path / "config.toml")
     save(config)
     restored = load(config.path)
@@ -30,7 +32,13 @@ def test_unsigned_public_reasoning_is_explicit_persistent_and_forwarded(tmp_path
 
 
 @pytest.mark.parametrize(
-    "value,protocol,mode", [("false", "chat", "gateway"), (True, "responses", "gateway"), (True, "messages", "gateway"), (True, "chat", "direct")]
+    "value,protocol,mode",
+    [
+        ("false", "chat", "gateway"),
+        (True, "responses", "gateway"),
+        (True, "messages", "gateway"),
+        (True, "chat", "direct"),
+    ],
 )
 def test_unsigned_reasoning_cannot_be_enabled_for_wrong_protocol_or_mode(value, protocol, mode):
     with pytest.raises(ConfigError):

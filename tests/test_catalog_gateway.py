@@ -13,12 +13,21 @@ def test_gateway_catalog_mapping_cache_scope_and_no_certification(tmp_path):
     pytest.importorskip("protoverta.discovery")
     from protoverta.discovery import ModelInfo
 
-    provider = Provider("demo", "Demo", "https://example.test/api/v1", protocol="chat", execution_mode="gateway", discovery=Discovery(enabled=True))
+    provider = Provider(
+        "demo",
+        "Demo",
+        "https://example.test/api/v1",
+        protocol="chat",
+        execution_mode="gateway",
+        discovery=Discovery(enabled=True),
+    )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     cache = tmp_path / "cache.json"
     with (
         patch("codexapter.catalog.resolve_token", return_value="fixture-one"),
-        patch("protoverta.discovery.fetch_catalog", return_value=(ModelInfo("m", "Model", context_window_tokens=1000),)) as fetch,
+        patch(
+            "protoverta.discovery.fetch_catalog", return_value=(ModelInfo("m", "Model", context_window_tokens=1000),)
+        ) as fetch,
     ):
         assert fetch_models(config, provider, cache=cache) == ["m"]
         assert fetch.call_args.args[0] == provider.base_url
@@ -33,7 +42,10 @@ def test_gateway_catalog_mapping_cache_scope_and_no_certification(tmp_path):
 def test_new_runtime_policies_round_trip_without_importing_catalog_settings_into_gateway(tmp_path):
     values = {"catalog_policy_file": "catalog.json", "context_preflight": "estimate", "require_verified_routes": True}
     assert validate_gateway_runtime(values, "gateway") == values
-    assert runtime_options(values, "gateway", tmp_path / "config.toml") == {"context_preflight": "estimate", "require_verified_routes": True}
+    assert runtime_options(values, "gateway", tmp_path / "config.toml") == {
+        "context_preflight": "estimate",
+        "require_verified_routes": True,
+    }
     for bad in ({"context_preflight": "exact"}, {"require_verified_routes": 1}):
         with pytest.raises(ConfigError):
             validate_gateway_runtime(bad, "gateway")
@@ -60,13 +72,23 @@ def _catalog_with_invalid_entries(real_fetch):
 
 def test_gateway_catalog_skips_invalid_entries_and_says_so(tmp_path, capsys):
     discovery = pytest.importorskip("protoverta.discovery")
-    provider = Provider("demo", "Demo", "https://example.test/api/v1", protocol="chat", execution_mode="gateway", discovery=Discovery(enabled=True))
+    provider = Provider(
+        "demo",
+        "Demo",
+        "https://example.test/api/v1",
+        protocol="chat",
+        execution_mode="gateway",
+        discovery=Discovery(enabled=True),
+    )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     with (
         patch("codexapter.catalog.resolve_token", return_value="fixture"),
         patch("protoverta.discovery.fetch_catalog", _catalog_with_invalid_entries(discovery.fetch_catalog)),
     ):
         assert fetch_models(config, provider, cache=tmp_path / "cache.json") == ["good", "odd-limits"]
-    info = {item["id"]: item for item in json.loads((tmp_path / "cache.json").read_text())["providers"]["demo"]["model_info"]}
+    info = {
+        item["id"]: item
+        for item in json.loads((tmp_path / "cache.json").read_text())["providers"]["demo"]["model_info"]
+    }
     assert info["good"]["context_window_tokens"] == 8000 and info["odd-limits"]["context_window_tokens"] is None
     assert "skipped 1 invalid entry" in capsys.readouterr().err

@@ -31,7 +31,9 @@ def test_opt_in_catalog_requires_exact_model_without_rewriting_metadata(tmp_path
         catalog_override(str(path), "another/model")
 
 
-@pytest.mark.parametrize("data", [[], {}, {"models": []}, {"models": [None]}, {"models": [{"slug": "x"}, {"slug": "x"}]}])
+@pytest.mark.parametrize(
+    "data", [[], {}, {"models": []}, {"models": [None]}, {"models": [{"slug": "x"}, {"slug": "x"}]}]
+)
 def test_invalid_catalog_is_controlled_and_does_not_echo_content(tmp_path, data):
     path = tmp_path / "catalog.json"
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -89,7 +91,12 @@ def test_catalog_version_gate(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "raw", ['{"models":[],"models":[]}', '{"models":[{"slug":"vendor/model","extra":NaN}]}', '{"models":[{"slug":"vendor/model","extra":"\\ud800"}]}']
+    "raw",
+    [
+        '{"models":[],"models":[]}',
+        '{"models":[{"slug":"vendor/model","extra":NaN}]}',
+        '{"models":[{"slug":"vendor/model","extra":"\\ud800"}]}',
+    ],
 )
 def test_catalog_rejects_ambiguous_or_non_unicode_json(tmp_path, raw):
     path = tmp_path / "model.json"

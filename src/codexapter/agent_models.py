@@ -6,7 +6,11 @@ from .toml_text import toml_value
 
 
 def _model(value):
-    if not isinstance(value, str) or not 1 <= len(value) <= 512 or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= 512
+        or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value)
+    ):
         raise ConfigError("Agent model must be an exact model ID without whitespace (1–512 characters).")
     try:
         value.encode("utf-8")
@@ -30,7 +34,9 @@ def validate_agent_models(value):
     if value.get("effort", "inherit") not in ("inherit", "low", "medium", "high"):
         raise ConfigError("Agent effort must be inherit, low, medium or high.")
     if policy == "custom" and ("default" not in value or value.get("effort") not in ("low", "medium", "high")):
-        raise ConfigError("Custom Codex agent models require an exact default model and explicit low/medium/high effort.")
+        raise ConfigError(
+            "Custom Codex agent models require an exact default model and explicit low/medium/high effort."
+        )
     return dict(value)
 
 
@@ -51,4 +57,8 @@ def agent_overrides(prefix, options, model, effort):
 
 
 def agent_models_toml(options):
-    return "{ " + ", ".join(f"{key} = {toml_value(value)}" for key, value in sorted(validate_agent_models(options).items())) + " }"
+    return (
+        "{ "
+        + ", ".join(f"{key} = {toml_value(value)}" for key, value in sorted(validate_agent_models(options).items()))
+        + " }"
+    )

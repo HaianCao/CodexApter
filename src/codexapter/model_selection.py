@@ -60,7 +60,8 @@ def model_status(config, provider, model):
             client_profile="codex" if upstream != "responses" else "strict",
             overrides=options,
             freshness_required=bool(
-                provider.gateway_runtime.get("require_current_evidence") or provider.gateway_runtime.get("evidence_max_age_days") is not None
+                provider.gateway_runtime.get("require_current_evidence")
+                or provider.gateway_runtime.get("evidence_max_age_days") is not None
             ),
         )
     except (ImportError, OSError, ValueError, KeyError, TypeError):

@@ -33,7 +33,9 @@ from .toml_text import toml_value
 
 
 def _bypass_loopback_proxy(env: dict[str, str]) -> None:
-    entries = [value.strip() for key in ("NO_PROXY", "no_proxy") for value in env.get(key, "").split(",") if value.strip()]
+    entries = [
+        value.strip() for key in ("NO_PROXY", "no_proxy") for value in env.get(key, "").split(",") if value.strip()
+    ]
     entries.extend(("127.0.0.1", "localhost", "::1"))
     merged = ",".join({value.casefold(): value for value in entries}.values())
     env.update(NO_PROXY=merged, no_proxy=merged)
@@ -60,7 +62,9 @@ def build_invocation(
     validate_auth_mode(provider.auth_mode, provider.execution_mode)
     validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
     validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
-    validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
+    validate_capability_settings(
+        provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode
+    )
     if provider.upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (
         provider.execution_mode != "gateway" and provider.upstream_reasoning not in ("auto", "provider_default")
     ):
@@ -142,7 +146,13 @@ def build_invocation(
     if provider.execution_mode == "gateway" and provider.protocol != "responses":
         overrides.extend(cross_protocol_overrides(prefix))
         overrides.extend(
-            subagent_overrides(prefix, os.environ.get("CODEX_CA_ENABLE_SUBAGENTS"), os.environ.get("CODEX_CA_MODEL_CATALOG"), model, provider.agent_models)
+            subagent_overrides(
+                prefix,
+                os.environ.get("CODEX_CA_ENABLE_SUBAGENTS"),
+                os.environ.get("CODEX_CA_MODEL_CATALOG"),
+                model,
+                provider.agent_models,
+            )
         )
     overrides.extend(agent_overrides(prefix, provider.agent_models, model, reasoning))
     argv = [*prefix, *[piece for setting in overrides for piece in ("-c", setting)], "-m", model, *extra]
@@ -167,8 +177,12 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
         from protoverta.core import Protocol
         from protoverta.server import GatewayConfig, gateway_session
     except ImportError as exc:
-        raise LaunchError("Gateway mode needs a compatible Protoverta build installed in this Python environment.") from exc
-    upstream = {"responses": Protocol.RESPONSES, "chat": Protocol.CHAT, "messages": Protocol.MESSAGES}.get(provider.protocol)
+        raise LaunchError(
+            "Gateway mode needs a compatible Protoverta build installed in this Python environment."
+        ) from exc
+    upstream = {"responses": Protocol.RESPONSES, "chat": Protocol.CHAT, "messages": Protocol.MESSAGES}.get(
+        provider.protocol
+    )
     if upstream is None:
         raise LaunchError(f"Unsupported upstream protocol: {provider.protocol}")
     token = resolve_token(config, provider)
@@ -186,17 +200,24 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
             identifiers = (model,) + ((policy["default"],) if policy.get("policy") == "custom" else ())
             names = cached_model_names(config, provider, identifiers, token=token)
             registry_options["model_snapshot"] = ModelSnapshot(
-                provider.base_url, upstream, tuple(SnapshotModel(mid, names.get(mid, mid)) for mid in dict.fromkeys(identifiers))
+                provider.base_url,
+                upstream,
+                tuple(SnapshotModel(mid, names.get(mid, mid)) for mid in dict.fromkeys(identifiers)),
             )
         if provider.agent_models.get("policy") == "custom" and provider.agent_models.get("default") != model:
             registry_options["codex_model_safe_resume"] = True
-        registry_options.update(runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path()))
+        registry_options.update(
+            runtime_options(provider.gateway_runtime, provider.execution_mode, config.path or config_path())
+        )
         policy = retry_policy(config)
         if policy.enabled and policy.max_retries:
             from .retry_log import RetryLog
 
             registry_options.update(retry_policy=policy, retry_log=RetryLog(cache_path().parent / "retry.log"))
-        if validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode) == "function":
+        if (
+            validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
+            == "function"
+        ):
             registry_options["client_tool_search"] = "function"
         registry_options.update(validate_gateway_limits(provider.gateway_limits, provider.execution_mode))
         if validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode):
@@ -207,7 +228,9 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
             if reasoning_output is not None:
                 registry_options["reasoning_output"] = reasoning_output
             registry_options["public_reasoning"] = public_text
-        capabilities_file, required = validate_capability_settings(provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode)
+        capabilities_file, required = validate_capability_settings(
+            provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode
+        )
         if capabilities_file:
             from protoverta.capabilities import CapabilityRegistry
 
@@ -260,7 +283,11 @@ def _verify_capabilities(gateway, model: str, reasoning: str) -> None:
             client_profile=gateway.client_profile,
             policies=route_policies(gateway),
             **evidence_options(gateway),
-        ).require(verified=gateway.require_verified_routes or gateway.require_current_evidence or gateway.evidence_max_age_days is not None)
+        ).require(
+            verified=gateway.require_verified_routes
+            or gateway.require_current_evidence
+            or gateway.evidence_max_age_days is not None
+        )
     except ValueError as exc:
         raise LaunchError(f"Model compatibility check failed: {exc}") from exc
 
@@ -270,7 +297,9 @@ def preflight(config: Config, provider: Provider, model: str, reasoning: str) ->
     if provider.execution_mode == "gateway":
         gateway, _ = _gateway(config, provider, model)
         _verify_capabilities(gateway, model, reasoning)
-        build_invocation(config, provider, model, reasoning, [], gateway_url="http://127.0.0.1:0", gateway_token="preflight")
+        build_invocation(
+            config, provider, model, reasoning, [], gateway_url="http://127.0.0.1:0", gateway_token="preflight"
+        )
     else:
         build_invocation(config, provider, model, reasoning, [])
 
@@ -280,8 +309,13 @@ def launch(config: Config, provider: Provider, model: str, reasoning: str, extra
         if provider.execution_mode == "gateway":
             gateway, gateway_session = _gateway(config, provider, model)
             _verify_capabilities(gateway, model, reasoning)
-            with session_options(config.path or config_path(), provider) as observer_options, gateway_session(gateway, **observer_options) as origin:
-                argv, env = build_invocation(config, provider, model, reasoning, extra, gateway_url=origin, gateway_token=gateway.inbound_token)
+            with (
+                session_options(config.path or config_path(), provider) as observer_options,
+                gateway_session(gateway, **observer_options) as origin,
+            ):
+                argv, env = build_invocation(
+                    config, provider, model, reasoning, extra, gateway_url=origin, gateway_token=gateway.inbound_token
+                )
                 with foreground_child():
                     return subprocess.run(argv, cwd=Path.cwd(), env=env, check=False).returncode
         policy = retry_policy(config)

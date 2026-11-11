@@ -52,14 +52,22 @@ def validate_native_entry(entry):
     if default is not None and default not in {item["effort"] for item in efforts}:
         raise ValueError("native default effort is absent from supported levels")
     truncation = entry["truncation_policy"]
-    if truncation.get("mode") not in {"bytes", "tokens"} or type(truncation.get("limit")) is not int or truncation["limit"] < 0:
+    if (
+        truncation.get("mode") not in {"bytes", "tokens"}
+        or type(truncation.get("limit")) is not int
+        or truncation["limit"] < 0
+    ):
         raise ValueError("invalid native truncation policy")
     if any(not isinstance(value, str) for value in entry["experimental_supported_tools"]):
         raise ValueError("invalid native tool names")
     for key in ("context_window", "max_context_window"):
         if entry.get(key) is not None and (type(entry[key]) is not int or entry[key] <= 0):
             raise ValueError("invalid native context metadata")
-    if entry.get("context_window") and entry.get("max_context_window") and entry["context_window"] > entry["max_context_window"]:
+    if (
+        entry.get("context_window")
+        and entry.get("max_context_window")
+        and entry["context_window"] > entry["max_context_window"]
+    ):
         raise ValueError("inconsistent native context metadata")
     if entry.get("supports_search_tool") is not None and type(entry["supports_search_tool"]) is not bool:
         raise ValueError("invalid native search capability")
@@ -81,9 +89,13 @@ def load_catalog(value: str, model: str) -> tuple[Path, dict]:
         if any(not isinstance(slug, str) or not slug.strip() for slug in slugs) or len(set(slugs)) != len(slugs):
             raise ValueError
     except (OSError, ValueError, TypeError, KeyError, RecursionError, RuntimeError):
-        raise LaunchError("CODEX_CA_MODEL_CATALOG must name a readable Codex catalog with unique model slugs (maximum 2 MiB).") from None
+        raise LaunchError(
+            "CODEX_CA_MODEL_CATALOG must name a readable Codex catalog with unique model slugs (maximum 2 MiB)."
+        ) from None
     if model not in slugs:
-        raise LaunchError("The selected model has no exact entry in CODEX_CA_MODEL_CATALOG; refusing an implicit fallback tool profile.")
+        raise LaunchError(
+            "The selected model has no exact entry in CODEX_CA_MODEL_CATALOG; refusing an implicit fallback tool profile."
+        )
     return path, models[slugs.index(model)]
 
 
@@ -103,7 +115,12 @@ def catalog_override(value: str | None, model: str, prefix=None) -> list[str]:
         catalog = json.loads(raw, object_pairs_hook=_unique_object)
         json.dumps(catalog, ensure_ascii=False, allow_nan=False).encode("utf-8")
         models = catalog["models"]
-        if not isinstance(models, list) or not models or len(models) > 10000 or model not in [item.get("slug") for item in models if isinstance(item, dict)]:
+        if (
+            not isinstance(models, list)
+            or not models
+            or len(models) > 10000
+            or model not in [item.get("slug") for item in models if isinstance(item, dict)]
+        ):
             raise ValueError
         for entry in models:
             validate_native_entry(entry)

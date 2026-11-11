@@ -19,7 +19,15 @@ class GatewayLaunchTests(unittest.TestCase):
             patch("codexapter.launcher.shutil.which", return_value="codex.exe"),
             patch("codexapter.launcher.resolve_token", return_value="synthetic"),
         ):
-            argv, _ = build_invocation(self.config, self.provider, "model-id", "medium", [], gateway_url="http://127.0.0.1:1", gateway_token="local")
+            argv, _ = build_invocation(
+                self.config,
+                self.provider,
+                "model-id",
+                "medium",
+                [],
+                gateway_url="http://127.0.0.1:1",
+                gateway_token="local",
+            )
         self.assertIn("features.api_key_model_discovery=false", argv)
 
     def setUp(self):
@@ -72,15 +80,29 @@ class GatewayLaunchTests(unittest.TestCase):
         with (
             patch("codexapter.launcher.shutil.which", return_value="codex.exe"),
             patch("codexapter.launcher.resolve_token", return_value="secret"),
-            patch.dict("os.environ", {"NO_PROXY": "internal.test, other.test, localhost", "HTTPS_PROXY": "http://proxy.test:8080"}, clear=True),
+            patch.dict(
+                "os.environ",
+                {"NO_PROXY": "internal.test, other.test, localhost", "HTTPS_PROXY": "http://proxy.test:8080"},
+                clear=True,
+            ),
         ):
             import os
 
             before = dict(os.environ)
-            _argv, env = build_invocation(self.config, self.provider, "model-id", "medium", [], gateway_url="http://127.0.0.1:8765", gateway_token="local")
+            _argv, env = build_invocation(
+                self.config,
+                self.provider,
+                "model-id",
+                "medium",
+                [],
+                gateway_url="http://127.0.0.1:8765",
+                gateway_token="local",
+            )
             self.assertEqual(dict(os.environ), before)
             self.assertEqual(env["NO_PROXY"], env["no_proxy"])
-            self.assertTrue({"internal.test", "other.test", "localhost", "127.0.0.1", "::1"} <= set(env["NO_PROXY"].split(",")))
+            self.assertTrue(
+                {"internal.test", "other.test", "localhost", "127.0.0.1", "::1"} <= set(env["NO_PROXY"].split(","))
+            )
             self.assertEqual(env["HTTPS_PROXY"], before["HTTPS_PROXY"])
             self.provider.execution_mode = "direct"
             self.provider.protocol = "responses"
@@ -94,7 +116,13 @@ class GatewayLaunchTests(unittest.TestCase):
             patch("codexapter.launcher.resolve_token", return_value="upstream-secret"),
         ):
             argv, _env = build_invocation(
-                self.config, self.provider, "model-id", "medium", [], gateway_url="http://127.0.0.1:8765", gateway_token="local-secret"
+                self.config,
+                self.provider,
+                "model-id",
+                "medium",
+                [],
+                gateway_url="http://127.0.0.1:8765",
+                gateway_token="local-secret",
             )
         setting = next(item for item in argv if item.startswith("model_providers.chat.name="))
         self.assertEqual(tomllib.loads(setting)["model_providers"]["chat"]["name"], self.provider.display_name)
@@ -140,7 +168,15 @@ class GatewayLaunchTests(unittest.TestCase):
         snapshot.ModelSnapshot = lambda base, protocol, entries: (base, protocol, entries)
         snapshot.SnapshotModel = lambda mid, name: (mid, name)
         with (
-            patch.dict(sys.modules, {"protoverta": package, "protoverta.core": core, "protoverta.server": server, "protoverta.model_snapshot": snapshot}),
+            patch.dict(
+                sys.modules,
+                {
+                    "protoverta": package,
+                    "protoverta.core": core,
+                    "protoverta.server": server,
+                    "protoverta.model_snapshot": snapshot,
+                },
+            ),
             patch("codexapter.launcher.resolve_token", return_value="upstream-secret"),
             patch("codexapter.launcher.shutil.which", return_value="codex.exe"),
             patch("codexapter.launcher.subprocess.run", return_value=types.SimpleNamespace(returncode=7)) as run,

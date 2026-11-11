@@ -55,8 +55,12 @@ def provider_server(protocol, auth, paginated):
         assert not worker.is_alive()
 
 
-CASES = [(protocol, "gateway", auth) for protocol in ("messages", "chat", "responses") for auth in ("bearer", "api_key")]
-CASES += [("responses" if CODEX else "messages", "direct", auth) for auth in (["bearer"] if CODEX else ["bearer", "api_key"])]
+CASES = [
+    (protocol, "gateway", auth) for protocol in ("messages", "chat", "responses") for auth in ("bearer", "api_key")
+]
+CASES += [
+    ("responses" if CODEX else "messages", "direct", auth) for auth in (["bearer"] if CODEX else ["bearer", "api_key"])
+]
 
 
 @pytest.mark.parametrize("protocol,mode,auth", CASES)
@@ -71,7 +75,9 @@ def test_selected_protocol_version_and_auth_reach_every_catalog_page(tmp_path, m
     # Both auth modes are independent of protocol; no key lookup is needed.
     with provider_server(protocol, auth, paginated=protocol == "messages") as (base, observed):
         wire = {"messages": "messages", "chat": "chat", "responses": "responses"}[protocol] if CODEX else protocol
-        provider = configuration.Provider("fixture", "Fixture", base, protocol=wire, execution_mode=mode, auth_mode=auth)
+        provider = configuration.Provider(
+            "fixture", "Fixture", base, protocol=wire, execution_mode=mode, auth_mode=auth
+        )
         if CODEX:
             provider.discovery.enabled = True
         config = configuration.Config(providers={"fixture": provider}, path=tmp_path / "config.toml")
@@ -93,7 +99,9 @@ def test_selected_protocol_version_and_auth_reach_every_catalog_page(tmp_path, m
 
 def test_codex_messages_cache_rejects_missing_or_changed_version_policy(tmp_path, monkeypatch):
     config = configuration.Config(path=tmp_path / "config.toml")
-    provider = configuration.Provider("fixture", "Fixture", "https://example.invalid/v1", protocol="messages", execution_mode="gateway")
+    provider = configuration.Provider(
+        "fixture", "Fixture", "https://example.invalid/v1", protocol="messages", execution_mode="gateway"
+    )
     monkeypatch.setattr(catalog, "resolve_token", lambda *a, **kw: "synthetic-key")
     current = catalog._identity(provider, config, token="synthetic-key")
     old = {key: value for key, value in current.items() if key != "anthropic_version"}

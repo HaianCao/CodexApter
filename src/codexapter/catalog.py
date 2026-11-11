@@ -33,7 +33,11 @@ def cached_model_names(config, provider, identifiers, *, token=_UNSET):
         if entry.get("identity") != _identity(provider, config, token=token):
             return {}
         saved, now = entry.get("fetched_at"), time.time()
-        if type(saved) not in (int, float) or not 0 <= saved <= now or now - saved > provider.discovery.cache_ttl_seconds:
+        if (
+            type(saved) not in (int, float)
+            or not 0 <= saved <= now
+            or now - saved > provider.discovery.cache_ttl_seconds
+        ):
             return {}
         wanted = set(identifiers)
         info = entry.get("model_info", [])
@@ -115,7 +119,13 @@ def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
 # Token limits that providers report in their model lists. These are the
 # provider's own numbers (OpenRouter and TokenHarbor report them; NVIDIA NIM
 # does not); nothing is estimated. The first positive integer found wins.
-_CONTEXT_FIELDS = ("context_window_tokens", "context_window", "context_length", "max_input_tokens", "top_provider.context_length")
+_CONTEXT_FIELDS = (
+    "context_window_tokens",
+    "context_window",
+    "context_length",
+    "max_input_tokens",
+    "top_provider.context_length",
+)
 _OUTPUT_FIELDS = ("max_output_tokens", "max_completion_tokens", "top_provider.max_completion_tokens")
 _GATEWAY_CONTEXT_FIELD, _GATEWAY_OUTPUT_FIELD = "context_length", "top_provider.max_completion_tokens"
 _MAX_REPORTED_TOKENS = 2**31 - 1
@@ -133,7 +143,10 @@ def _reported_number(entry, paths):
 
 def reported_limits(entry) -> dict:
     """``context_window_tokens`` and ``max_output_tokens`` a model list reports, or ``None``."""
-    return {"context_window_tokens": _reported_number(entry, _CONTEXT_FIELDS), "max_output_tokens": _reported_number(entry, _OUTPUT_FIELDS)}
+    return {
+        "context_window_tokens": _reported_number(entry, _CONTEXT_FIELDS),
+        "max_output_tokens": _reported_number(entry, _OUTPUT_FIELDS),
+    }
 
 
 def _present_limits(entry) -> dict:
@@ -240,7 +253,14 @@ def store_catalog(provider_id, entry, cache=None):
 
 
 def fetch_models(
-    config: Config, provider: Provider, *, cache: Path | None = None, timeout: float = 15.0, cache_sink=None, budget=None, token=_UNSET
+    config: Config,
+    provider: Provider,
+    *,
+    cache: Path | None = None,
+    timeout: float = 15.0,
+    cache_sink=None,
+    budget=None,
+    token=_UNSET,
 ) -> list[str]:
     if not provider.discovery.enabled:
         raise DiscoveryError(f"Provider '{provider.id}' does not expose model discovery.")
@@ -254,7 +274,9 @@ def fetch_models(
         token = resolve_token(config, provider, required=False)
     identity = _identity(provider, config, token=token)
     if token:
-        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = token if provider.auth_mode == "api_key" else f"Bearer {token}"
+        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = (
+            token if provider.auth_mode == "api_key" else f"Bearer {token}"
+        )
     if provider.execution_mode == "gateway":
         try:
             from protoverta.discovery import CatalogPolicy, fetch_catalog
@@ -287,7 +309,9 @@ def fetch_models(
             _note_skipped(items)
             info = [item.as_dict() for item in items]
         except ImportError:
-            raise DiscoveryError("Gateway discovery needs the Protoverta component. Run the installer command again to repair it.") from None
+            raise DiscoveryError(
+                "Gateway discovery needs the Protoverta component. Run the installer command again to repair it."
+            ) from None
         except (ValueError, OSError, TypeError):
             raise DiscoveryError("Gateway catalog failed validation or exceeded its resource budget.") from None
         models = [item["id"] for item in info]
@@ -323,7 +347,13 @@ def fetch_models(
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, list):
         raise DiscoveryError("Model discovery response does not contain a 'data' list.")
-    models = sorted({item["id"].strip() for item in data if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()})
+    models = sorted(
+        {
+            item["id"].strip()
+            for item in data
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()
+        }
+    )
     if not models:
         raise DiscoveryError("Model discovery returned no usable model IDs.")
     info = []

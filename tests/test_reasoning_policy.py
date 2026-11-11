@@ -13,10 +13,19 @@ from codexapter.launcher import _gateway, build_invocation
 from codexapter.web import public_config
 
 
-@pytest.mark.parametrize("protocol,public,output", [("chat", True, "omit"), ("messages", False, "omit"), ("responses", False, "reject")])
+@pytest.mark.parametrize(
+    "protocol,public,output", [("chat", True, "omit"), ("messages", False, "omit"), ("responses", False, "reject")]
+)
 def test_auto_reasoning_uses_the_route_without_mutating_provider(tmp_path, monkeypatch, protocol, public, output):
     pytest.importorskip("protoverta.automatic_reasoning")
-    provider = Provider("demo", "Demo", "https://example.test/v1", protocol=protocol, execution_mode="gateway", upstream_reasoning="auto")
+    provider = Provider(
+        "demo",
+        "Demo",
+        "https://example.test/v1",
+        protocol=protocol,
+        execution_mode="gateway",
+        upstream_reasoning="auto",
+    )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     monkeypatch.setattr("codexapter.launcher.resolve_token", lambda *_: "synthetic")
     gateway, _ = _gateway(config, provider)
@@ -31,7 +40,13 @@ def test_auto_reasoning_uses_the_route_without_mutating_provider(tmp_path, monke
 class ReasoningPolicyTests(unittest.TestCase):
     def test_policy_survives_save_load_and_public_config(self):
         with tempfile.TemporaryDirectory() as directory:
-            provider = Provider("demo", "Demo", "https://example.test/v1", execution_mode="gateway", upstream_reasoning="openrouter_disabled")
+            provider = Provider(
+                "demo",
+                "Demo",
+                "https://example.test/v1",
+                execution_mode="gateway",
+                upstream_reasoning="openrouter_disabled",
+            )
             config = Config(providers={"demo": provider}, path=Path(directory) / "config.toml")
             save(config)
             restored = load(config.path)
@@ -44,7 +59,13 @@ class ReasoningPolicyTests(unittest.TestCase):
             build_invocation(Config(), provider, "m", "high", [])
 
     def test_gateway_receives_policy(self):
-        provider = Provider("demo", "Demo", "https://example.test/v1", execution_mode="gateway", upstream_reasoning="openrouter_disabled")
+        provider = Provider(
+            "demo",
+            "Demo",
+            "https://example.test/v1",
+            execution_mode="gateway",
+            upstream_reasoning="openrouter_disabled",
+        )
         gateway_config = Mock()
         core = types.ModuleType("protoverta.core")
         core.Protocol = types.SimpleNamespace(CHAT="chat", MESSAGES="messages", RESPONSES="responses")

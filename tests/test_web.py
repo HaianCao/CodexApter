@@ -35,7 +35,9 @@ class WebConfigTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
             config = Config(
-                providers={"demo": Provider("demo", "Old", "https://example.test/v1")}, path=Path(directory) / "config.toml", env_file=Path(directory) / ".env"
+                providers={"demo": Provider("demo", "Old", "https://example.test/v1")},
+                path=Path(directory) / "config.toml",
+                env_file=Path(directory) / ".env",
             )
             store_token("DEMO_TOKEN", "fixture-old", config=config)
             before = config.env_file.read_bytes()
@@ -119,7 +121,9 @@ class WebConfigTests(unittest.TestCase):
                     urlopen(url + "api/diagnostics?provider=demo", timeout=3)
                 self.assertEqual(unauthorized.exception.code, 403)
                 unauthorized.exception.close()
-                diagnostic_request = Request(url + "api/diagnostics?provider=demo", headers={"X-Codex-Apter-Token": token})
+                diagnostic_request = Request(
+                    url + "api/diagnostics?provider=demo", headers={"X-Codex-Apter-Token": token}
+                )
                 with urlopen(diagnostic_request, timeout=3) as response:
                     self.assertEqual(json.load(response), {"records": [], "enabled": False})
                 agent_policy = {"policy": "custom", "default": "fixture-worker", "effort": "low"}
@@ -135,13 +139,21 @@ class WebConfigTests(unittest.TestCase):
                     edit = Request(
                         url + "api/provider",
                         data=json.dumps(
-                            {"id": "demo", "display_name": "Demo renamed", "base_url": "https://example.test/v1", "execution_mode": "gateway", **extra_fields}
+                            {
+                                "id": "demo",
+                                "display_name": "Demo renamed",
+                                "base_url": "https://example.test/v1",
+                                "execution_mode": "gateway",
+                                **extra_fields,
+                            }
                         ).encode(),
                         headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token},
                         method="POST",
                     )
                     with urlopen(edit, timeout=3) as response:
-                        self.assertEqual(json.load(response)["providers"][0]["upstream_reasoning"], "openrouter_disabled")
+                        self.assertEqual(
+                            json.load(response)["providers"][0]["upstream_reasoning"], "openrouter_disabled"
+                        )
                     self.assertEqual(load(config.path).providers["demo"].upstream_reasoning, "openrouter_disabled")
                     self.assertEqual(load(config.path).providers["demo"].capabilities_file, "checks.json")
                     self.assertTrue(load(config.path).providers["demo"].require_verified_capabilities)
@@ -163,7 +175,9 @@ class WebConfigTests(unittest.TestCase):
                         method="POST",
                     )
                     with urlopen(edit, timeout=3) as response:
-                        self.assertEqual(json.load(response)["providers"][0]["messages_system_models"], ["verified-model"])
+                        self.assertEqual(
+                            json.load(response)["providers"][0]["messages_system_models"], ["verified-model"]
+                        )
                     self.assertEqual(load(config.path).providers["demo"].messages_system_models, ["verified-model"])
                 for extra_fields in ({"public_reasoning": True, "messages_system_models": []}, {}):
                     edit = Request(
@@ -187,7 +201,12 @@ class WebConfigTests(unittest.TestCase):
                 invalid = Request(
                     url + "api/provider",
                     data=json.dumps(
-                        {"id": "demo", "display_name": "Invalid", "base_url": "https://example.test/v1", "messages_system_models": "not-an-array"}
+                        {
+                            "id": "demo",
+                            "display_name": "Invalid",
+                            "base_url": "https://example.test/v1",
+                            "messages_system_models": "not-an-array",
+                        }
                     ).encode(),
                     headers={"Content-Type": "application/json", "X-Codex-Apter-Token": token},
                     method="POST",

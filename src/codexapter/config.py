@@ -52,7 +52,11 @@ def _migrate_legacy_config(target: Path) -> Path:
     if os.environ.get("CODEX_CA_CONFIG"):
         return target
     appdata = os.environ.get("APPDATA")
-    legacy = (Path(appdata) / "codex-ai" / "config.toml") if appdata else Path.home() / ".config" / "codex-ai" / "config.toml"
+    legacy = (
+        (Path(appdata) / "codex-ai" / "config.toml")
+        if appdata
+        else Path.home() / ".config" / "codex-ai" / "config.toml"
+    )
     if target.exists() or not legacy.is_file():
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -65,10 +69,16 @@ def _migrate_legacy_config(target: Path) -> Path:
     elif old_env.is_file() and new_env.is_file():
         try:
             existing = {
-                line.split("=", 1)[0].strip() for line in new_env.read_text(encoding="utf-8").splitlines() if "=" in line and not line.lstrip().startswith("#")
+                line.split("=", 1)[0].strip()
+                for line in new_env.read_text(encoding="utf-8").splitlines()
+                if "=" in line and not line.lstrip().startswith("#")
             }
             old_lines = old_env.read_text(encoding="utf-8").splitlines()
-            additions = [line for line in old_lines if "=" in line and not line.lstrip().startswith("#") and line.split("=", 1)[0].strip() not in existing]
+            additions = [
+                line
+                for line in old_lines
+                if "=" in line and not line.lstrip().startswith("#") and line.split("=", 1)[0].strip() not in existing
+            ]
             if additions:
                 with new_env.open("a", encoding="utf-8", newline="\n") as handle:
                     handle.write(("\n" if new_env.stat().st_size else "") + "\n".join(additions) + "\n")
@@ -81,7 +91,9 @@ def _migrate_legacy_config(target: Path) -> Path:
         if raw.get("env_file") and Path(raw["env_file"]).expanduser() == old_env:
             content = target.read_text(encoding="utf-8")
             new_line = f"env_file = {toml_value(str(new_env))}"
-            target.write_text(re.sub(r"(?m)^env_file\s*=.*$", lambda _match: new_line, content, count=1), encoding="utf-8")
+            target.write_text(
+                re.sub(r"(?m)^env_file\s*=.*$", lambda _match: new_line, content, count=1), encoding="utf-8"
+            )
     except (OSError, tomllib.TOMLDecodeError, TypeError):
         pass
     if not old_env.exists() or migrated_env:
@@ -212,7 +224,9 @@ def validate_capability_settings(path: Any, required: Any, mode: str) -> tuple[s
 
 def validate_system_models(value: Any, protocol: str, mode: str) -> list[str]:
     """Explicit, provider-verified model IDs; never infer capability from a name."""
-    if not isinstance(value, list) or any(not isinstance(model, str) or not model or any(char.isspace() for char in model) for model in value):
+    if not isinstance(value, list) or any(
+        not isinstance(model, str) or not model or any(char.isspace() for char in model) for model in value
+    ):
         raise ConfigError("messages_system_models must be an array of exact model IDs.")
     if len(value) != len(set(value)):
         raise ConfigError("messages_system_models cannot contain duplicates.")
@@ -318,11 +332,19 @@ def validate_base_url(value: str) -> str:
         port = parsed.port  # Force validation of a malformed port number.
     except ValueError as exc:
         raise ConfigError("Provider base URL is invalid.") from exc
-    if not parsed.hostname or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
+    if (
+        not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ConfigError("Provider base URL must be an HTTPS URL without credentials, query, or fragment.")
     if port is not None and port < 1:
         raise ConfigError("Provider base URL port must be between 1 and 65535.")
-    if parsed.scheme.lower() != "https" and not (parsed.scheme.lower() == "http" and parsed.hostname.lower() in {"localhost", "127.0.0.1", "::1"}):
+    if parsed.scheme.lower() != "https" and not (
+        parsed.scheme.lower() == "http" and parsed.hostname.lower() in {"localhost", "127.0.0.1", "::1"}
+    ):
         raise ConfigError("Provider base URL must use HTTPS (HTTP is allowed only for localhost/loopback).")
     if parsed.path.rstrip("/").endswith(("/responses", "/messages", "/chat/completions")):
         raise ConfigError("Enter the base URL, for example https://provider.example/v1, without the endpoint suffix.")
@@ -374,7 +396,9 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         item = _table(item, f"providers.{name}")
         _string(item.get("base_url"), f"providers.{name}.base_url", True)
         base_url = validate_base_url(item["base_url"])
-        protocol = normalize_protocol(_string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True))
+        protocol = normalize_protocol(
+            _string(item.get("protocol", "responses"), f"providers.{name}.protocol", required=True)
+        )
         mode = _string(item.get("execution_mode", "direct"), f"providers.{name}.execution_mode", required=True)
         if protocol not in _PROTOCOLS or mode not in _MODES:
             raise ConfigError(f"providers.{name} has unsupported protocol or execution_mode.")
@@ -388,17 +412,29 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
         discovery = Discovery(
             enabled=_boolean(discovery_raw.get("enabled", False), f"providers.{name}.model_discovery.enabled"),
             path=_string(discovery_raw.get("path", "/models"), f"providers.{name}.model_discovery.path", required=True),
-            method=_string(discovery_raw.get("method", "GET"), f"providers.{name}.model_discovery.method", required=True).upper(),
+            method=_string(
+                discovery_raw.get("method", "GET"), f"providers.{name}.model_discovery.method", required=True
+            ).upper(),
             response_format=_string(
-                discovery_raw.get("response_format", "openai_models_list"), f"providers.{name}.model_discovery.response_format", required=True
+                discovery_raw.get("response_format", "openai_models_list"),
+                f"providers.{name}.model_discovery.response_format",
+                required=True,
             ),
-            cache_ttl_seconds=_positive_integer(discovery_raw.get("cache_ttl_seconds", 3600), f"providers.{name}.model_discovery.cache_ttl_seconds"),
+            cache_ttl_seconds=_positive_integer(
+                discovery_raw.get("cache_ttl_seconds", 3600), f"providers.{name}.model_discovery.cache_ttl_seconds"
+            ),
         )
-        if discovery.method != "GET" or discovery.response_format != "openai_models_list" or not discovery.path.startswith("/") or "://" in discovery.path:
+        if (
+            discovery.method != "GET"
+            or discovery.response_format != "openai_models_list"
+            or not discovery.path.startswith("/")
+            or "://" in discovery.path
+        ):
             raise ConfigError(f"providers.{name}.model_discovery only permits a relative GET path.")
         display_name = _string(item.get("display_name", name), f"providers.{name}.display_name", required=True)
         gateway_max_output_tokens = _positive_integer(
-            item.get("gateway_max_output_tokens", DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS), f"providers.{name}.gateway_max_output_tokens"
+            item.get("gateway_max_output_tokens", DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS),
+            f"providers.{name}.gateway_max_output_tokens",
         )
         upstream_reasoning = item.get("upstream_reasoning", "auto")
         if upstream_reasoning not in ("auto", "provider_default", "disabled", "openrouter_disabled") or (
@@ -430,8 +466,12 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
 
         providers[name].gateway_limits = validate_gateway_limits(item.get("gateway_limits", {}), mode)
         # Preserve old Messages configurations which previously used x-api-key.
-        providers[name].auth_mode = validate_auth_mode(item.get("auth_mode", "api_key" if protocol == "messages" else "bearer"), mode)
-        providers[name].client_tool_search = validate_client_tool_search(item.get("client_tool_search", "reject"), protocol, mode)
+        providers[name].auth_mode = validate_auth_mode(
+            item.get("auth_mode", "api_key" if protocol == "messages" else "bearer"), mode
+        )
+        providers[name].client_tool_search = validate_client_tool_search(
+            item.get("client_tool_search", "reject"), protocol, mode
+        )
         from .gateway_options import validate_gateway_runtime
 
         providers[name].gateway_runtime = validate_gateway_runtime(item.get("gateway_runtime", {}), mode)
@@ -451,13 +491,23 @@ def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> C
             name,
             provider,
             _string(item.get("model_id"), f"models.{name}.model_id", True),
-            _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort") if alias_reasoning is not None else None,
+            _reasoning_effort(alias_reasoning, f"models.{name}.reasoning_effort")
+            if alias_reasoning is not None
+            else None,
         )
     configured_env_file = _string(raw.get("env_file"), "env_file")
     retry = raw.get("retry", {})
     if not isinstance(retry, dict):
         raise ConfigError("[retry] must be a TOML table.")
-    config = Config(defaults, providers, secrets, models, source, Path(configured_env_file).expanduser() if configured_env_file else None, retry)
+    config = Config(
+        defaults,
+        providers,
+        secrets,
+        models,
+        source,
+        Path(configured_env_file).expanduser() if configured_env_file else None,
+        retry,
+    )
     if RetryPolicy is not None:  # Without the core, launching reports the repair step.
         retry_policy(config)
     validate_secret_names(config)
@@ -473,7 +523,9 @@ def _quote(value: str) -> str:
 def retry_policy(config: Config):
     """The session's error-class retry policy (Protoverta ``RetryPolicy``)."""
     if RetryPolicy is None:
-        raise ConfigError("CodexApter's Protoverta component is missing or broken. Run the installer command again to repair it.")
+        raise ConfigError(
+            "CodexApter's Protoverta component is missing or broken. Run the installer command again to repair it."
+        )
     try:
         return RetryPolicy.from_mapping(config.retry)
     except ValueError as exc:
@@ -512,7 +564,14 @@ def save(config: Config, path: Path | None = None) -> Path:
         # Written as the user set it (0.1.x wrote this table too).
         lines += ["", "[retry]"] + [f"{key} = {toml_value(config.retry[key])}" for key in sorted(config.retry)]
     for name, secret in sorted(config.secrets.items()):
-        lines.extend(["", f"[secrets.{name}]", f"backend = {_quote(secret.backend)}", f"env_var = {_quote(secret.env_var or '')}"])
+        lines.extend(
+            [
+                "",
+                f"[secrets.{name}]",
+                f"backend = {_quote(secret.backend)}",
+                f"env_var = {_quote(secret.env_var or '')}",
+            ]
+        )
     for name, provider in sorted(config.providers.items()):
         validate_base_url(provider.base_url)
         from .gateway_options import (
@@ -525,8 +584,12 @@ def save(config: Config, path: Path | None = None) -> Path:
         limits = validate_gateway_limits(provider.gateway_limits, provider.execution_mode)
         runtime = validate_gateway_runtime(provider.gateway_runtime, provider.execution_mode)
         auth_mode = validate_auth_mode(provider.auth_mode, provider.execution_mode)
-        search_policy = validate_client_tool_search(provider.client_tool_search, provider.protocol, provider.execution_mode)
-        public_reasoning = validate_public_reasoning(provider.public_reasoning, provider.protocol, provider.execution_mode)
+        search_policy = validate_client_tool_search(
+            provider.client_tool_search, provider.protocol, provider.execution_mode
+        )
+        public_reasoning = validate_public_reasoning(
+            provider.public_reasoning, provider.protocol, provider.execution_mode
+        )
         capabilities_file, require_verified = validate_capability_settings(
             provider.capabilities_file, provider.require_verified_capabilities, provider.execution_mode
         )
@@ -563,10 +626,19 @@ def save(config: Config, path: Path | None = None) -> Path:
             lines.append("agent_models = " + agent_models_toml(agents))
         model_limits = validate_model_limits(provider.model_limits)
         if model_limits:
-            lines.append("model_limits = { " + ", ".join(f"{key} = {model_limits[key]}" for key in sorted(model_limits)) + " }")
+            lines.append(
+                "model_limits = { " + ", ".join(f"{key} = {model_limits[key]}" for key in sorted(model_limits)) + " }"
+            )
         if capabilities_file:
-            lines.extend([f"capabilities_file = {_quote(capabilities_file)}", f"require_verified_capabilities = {str(require_verified).lower()}"])
-        system_models = validate_system_models(provider.messages_system_models, provider.protocol, provider.execution_mode)
+            lines.extend(
+                [
+                    f"capabilities_file = {_quote(capabilities_file)}",
+                    f"require_verified_capabilities = {str(require_verified).lower()}",
+                ]
+            )
+        system_models = validate_system_models(
+            provider.messages_system_models, provider.protocol, provider.execution_mode
+        )
         if system_models:
             lines.append(f"messages_system_models = {toml_value(system_models)}")
         if provider.auth_secret_ref:
@@ -586,7 +658,9 @@ def save(config: Config, path: Path | None = None) -> Path:
             ]
         )
     for name, alias in sorted(config.models.items()):
-        lines.extend(["", f"[models.{name}]", f"provider = {_quote(alias.provider)}", f"model_id = {_quote(alias.model_id)}"])
+        lines.extend(
+            ["", f"[models.{name}]", f"provider = {_quote(alias.provider)}", f"model_id = {_quote(alias.model_id)}"]
+        )
         if alias.reasoning_effort:
             lines.append(f"reasoning_effort = {_quote(alias.reasoning_effort)}")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -594,7 +668,13 @@ def save(config: Config, path: Path | None = None) -> Path:
     temporary: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", newline="\n", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False
+            "w",
+            encoding="utf-8",
+            newline="\n",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
         ) as handle:
             temporary = handle.name
             handle.write(content)

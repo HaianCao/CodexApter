@@ -32,7 +32,13 @@ def test_duplicate_secret_environment_names_are_rejected_before_key_write(tmp_pa
     config = Config(path=tmp_path / "config.toml", env_file=tmp_path / ".env")
     config.path.write_bytes(b"prior config")
     config.env_file.write_bytes(b"prior secrets")
-    updated = Config(path=config.path, secrets={"one": SecretReference("one", env_var="DEMO_TOKEN"), "two": SecretReference("two", env_var="demo_token")})
+    updated = Config(
+        path=config.path,
+        secrets={
+            "one": SecretReference("one", env_var="DEMO_TOKEN"),
+            "two": SecretReference("two", env_var="demo_token"),
+        },
+    )
     with patch("codexapter.web.store_token") as store, pytest.raises(ConfigError, match="same environment"):
         persist_change(config, updated, "DEMO_TOKEN", "fixture")
     store.assert_not_called()
@@ -40,7 +46,9 @@ def test_duplicate_secret_environment_names_are_rejected_before_key_write(tmp_pa
     assert config.env_file.read_bytes() == b"prior secrets"
     with pytest.raises(ConfigError, match="same environment"):
         save(updated)
-    config.path.write_text('[secrets.one]\nenv_var="DEMO_TOKEN"\n[secrets.two]\nenv_var="demo_token"\n', encoding="utf-8")
+    config.path.write_text(
+        '[secrets.one]\nenv_var="DEMO_TOKEN"\n[secrets.two]\nenv_var="demo_token"\n', encoding="utf-8"
+    )
     with pytest.raises(ConfigError, match="same environment"):
         load(config.path)
 
@@ -48,7 +56,9 @@ def test_duplicate_secret_environment_names_are_rejected_before_key_write(tmp_pa
 def test_explicit_shared_reference_remains_supported(tmp_path):
     config = Config(
         path=tmp_path / "config.toml",
-        providers={name: Provider(name, name, "https://example.test/v1", auth_secret_ref="shared") for name in ("a-b", "a_b")},
+        providers={
+            name: Provider(name, name, "https://example.test/v1", auth_secret_ref="shared") for name in ("a-b", "a_b")
+        },
         secrets={"shared": SecretReference("shared", env_var="SHARED_TOKEN")},
     )
     save(config)
@@ -79,8 +89,19 @@ def test_setup_api_collision_does_not_change_first_provider_key(tmp_path):
             origin = url.split("?", 1)[0]
 
             def post(provider_id, key):
-                body = {"id": provider_id, "display_name": provider_id, "base_url": "https://example.test/v1", "api_key": key, "discovery": False}
-                return urlopen(Request(origin + "api/provider", data=json.dumps(body).encode(), headers={"X-Codex-Apter-Token": token}), timeout=3)
+                body = {
+                    "id": provider_id,
+                    "display_name": provider_id,
+                    "base_url": "https://example.test/v1",
+                    "api_key": key,
+                    "discovery": False,
+                }
+                return urlopen(
+                    Request(
+                        origin + "api/provider", data=json.dumps(body).encode(), headers={"X-Codex-Apter-Token": token}
+                    ),
+                    timeout=3,
+                )
 
             with post("test-a", "fixture-original"):
                 pass
