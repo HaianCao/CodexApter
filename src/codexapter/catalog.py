@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import time
 import uuid
 from contextlib import nullcontext
-from dataclasses import replace
 from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -202,6 +202,14 @@ def _write_cache(data: dict, path: Path | None = None) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _note_skipped(items):
+    """Tell the user when the provider's catalog had entries that were left out."""
+    skipped = getattr(items, "skipped", 0)
+    if skipped:
+        noun = "entry" if skipped == 1 else "entries"
+        print(f"Note: skipped {skipped} invalid {noun} in the provider's model list.", file=sys.stderr)
+
+
 def cached_models(provider: Provider, path: Path | None = None, *, config=None) -> tuple[list[str], bool]:
     entry = _read_cache(path).get("providers", {}).get(provider.id, {})
     if not isinstance(entry, dict) or entry.get("identity") != _identity(provider, config):
@@ -253,6 +261,7 @@ def fetch_models(
                 pagination="after_id" if provider.protocol == "messages" else "none",
                 context_field=_GATEWAY_CONTEXT_FIELD,
                 output_field=_GATEWAY_OUTPUT_FIELD,
+                invalid_entries="skip",
             )
             if policy_file:
                 path = Path(policy_file).expanduser()
@@ -267,18 +276,13 @@ def fetch_models(
                     return _open(request, timeout=min(timeout, budget.remaining()))
 
                 options["upstream_open"] = upstream_open
-            try:
-                items = fetch_catalog(provider.base_url, headers, policy, **options)
-            except ValueError as exc:
-                # A provider may report limits in another shape; the strict
-                # parser then rejects the page. Limits are optional, so list
-                # the models without them rather than failing discovery.
-                if policy_file or "token limits" not in str(exc):
-                    raise
-                items = fetch_catalog(provider.base_url, headers, replace(policy, context_field=None, output_field=None), **options)
+            # Skip mode lists every model with a valid ID; malformed optional
+            # metadata such as token limits is dropped, never guessed.
+            items = fetch_catalog(provider.base_url, headers, policy, **options)
+            _note_skipped(items)
             info = [item.as_dict() for item in items]
         except ImportError:
-            raise DiscoveryError("Gateway discovery requires the matching Protoverta preview.") from None
+            raise DiscoveryError("Gateway discovery needs the Protoverta component. Run the installer command again to repair it.") from None
         except (ValueError, OSError, TypeError):
             raise DiscoveryError("Gateway catalog failed validation or exceeded its resource budget.") from None
         models = [item["id"] for item in info]
