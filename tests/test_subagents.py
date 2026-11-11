@@ -8,7 +8,9 @@ from codexapter.errors import LaunchError
 
 def catalog(tmp_path, **fields):
     path = tmp_path / "models.json"
-    path.write_text(json.dumps({"models": [{"slug": "fixture", "supports_search_tool": False, **fields}]}), encoding="utf-8")
+    path.write_text(
+        json.dumps({"models": [{"slug": "fixture", "supports_search_tool": False, **fields}]}), encoding="utf-8"
+    )
     return str(path)
 
 
@@ -43,7 +45,9 @@ def test_inherited_model_policy_cannot_enable_subagents(monkeypatch):
         subagents.subagent_overrides([], "1", None, "fixture", {"policy": "inherit"})
 
 
-@pytest.mark.parametrize("fields", [{"supports_search_tool": True}, {"supports_search_tool": None}, {"tool_mode": "code_mode_only"}])
+@pytest.mark.parametrize(
+    "fields", [{"supports_search_tool": True}, {"supports_search_tool": None}, {"tool_mode": "code_mode_only"}]
+)
 def test_deferred_or_code_only_tools_remain_outside_verified_subset(tmp_path, monkeypatch, fields):
     monkeypatch.setattr(subagents, "detect_version", lambda _: (0, 166, 0))
     with pytest.raises(LaunchError, match="Deferred tool search"):

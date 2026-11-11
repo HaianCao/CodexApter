@@ -12,7 +12,12 @@ from codexapter.web import public_config
 
 def test_registry_settings_persist_and_require_gateway(tmp_path):
     provider = Provider(
-        "demo", "Demo", "https://example.test/v1", execution_mode="gateway", capabilities_file="checks.json", require_verified_capabilities=True
+        "demo",
+        "Demo",
+        "https://example.test/v1",
+        execution_mode="gateway",
+        capabilities_file="checks.json",
+        require_verified_capabilities=True,
     )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     save(config)
@@ -33,7 +38,12 @@ def test_registry_settings_persist_and_require_gateway(tmp_path):
 
 def test_registry_path_is_resolved_relative_to_configuration_not_working_directory(tmp_path):
     provider = Provider(
-        "demo", "Demo", "https://example.test/v1", execution_mode="gateway", capabilities_file="checks.json", require_verified_capabilities=True
+        "demo",
+        "Demo",
+        "https://example.test/v1",
+        execution_mode="gateway",
+        capabilities_file="checks.json",
+        require_verified_capabilities=True,
     )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     core = types.ModuleType("protoverta.core")
@@ -43,7 +53,9 @@ def test_registry_path_is_resolved_relative_to_configuration_not_working_directo
     capabilities = types.ModuleType("protoverta.capabilities")
     capabilities.CapabilityRegistry = Mock()
     with (
-        patch.dict(sys.modules, {"protoverta.core": core, "protoverta.server": server, "protoverta.capabilities": capabilities}),
+        patch.dict(
+            sys.modules, {"protoverta.core": core, "protoverta.server": server, "protoverta.capabilities": capabilities}
+        ),
         patch("codexapter.launcher.resolve_token", return_value="fixture-key"),
     ):
         _gateway(config, provider)
@@ -94,7 +106,13 @@ def test_optional_reasoning_permission_does_not_require_model_to_emit_it(verifie
         )
     )
     gateway = GatewayConfig(
-        "chat", "https://example.test/v1", "synthetic", "local", public_reasoning=True, capabilities=registry, require_verified_capabilities=verified
+        "chat",
+        "https://example.test/v1",
+        "synthetic",
+        "local",
+        public_reasoning=True,
+        capabilities=registry,
+        require_verified_capabilities=verified,
     )
     _verify_capabilities(gateway, "model-a", "medium")
     # Permission is not a capability demand. Actual reasoning replay still is.
@@ -117,7 +135,9 @@ def test_optional_reasoning_still_requires_matching_route_policy_evidence():
     from protoverta.server import GatewayConfig
 
     features = {"text": True, "streaming": True, "reasoning_effort": True, "public_reasoning": False}
-    record = capabilities.CapabilityRecord("https://example.test/v1", "chat", "model-a", features, "2026-10-27", "synthetic")
+    record = capabilities.CapabilityRecord(
+        "https://example.test/v1", "chat", "model-a", features, "2026-10-27", "synthetic"
+    )
     registry = capabilities.CapabilityRegistry((record,))
     gateway = GatewayConfig(
         "chat",

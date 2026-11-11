@@ -9,6 +9,7 @@ import tempfile
 import warnings
 from functools import lru_cache
 from pathlib import Path
+from typing import TypeGuard
 
 # A cold native CLI start (a large executable scanned by antivirus on first
 # run) can take several seconds; 3 s silently disabled version-gated features.
@@ -20,12 +21,15 @@ def parse_version(raw: bytes) -> tuple[int, int, int] | None:
     if len(raw) > 256:
         return None
     match = re.fullmatch(rb"codex-cli ([0-9]{1,5})\.([0-9]{1,5})\.([0-9]{1,5})\s*", raw)
-    return tuple(map(int, match.groups())) if match else None
+    if match is None:
+        return None
+    major, minor, patch = (int(part) for part in match.groups())
+    return major, minor, patch
 
 
 def detect_version(prefix: list[str]) -> tuple[int, int, int] | None:
     # Refresh after an executable/npm entry changes; cache no credential or env.
-    identity = []
+    identity: list[tuple[int, int] | None] = []
     for part in prefix:
         try:
             stat = Path(part).stat()
@@ -73,7 +77,7 @@ VERIFIED_VERSIONS = frozenset({(0, 166, 0), (0, 167, 0)})
 MINIMUM_SCHEMA_VERSION = (0, 166, 0)
 
 
-def schema_supported(version: tuple[int, int, int] | None) -> bool:
+def schema_supported(version: tuple[int, int, int] | None) -> TypeGuard[tuple[int, int, int]]:
     """True for verified releases and newer 0.x releases using the same settings."""
     return version is not None and version[0] == 0 and version >= MINIMUM_SCHEMA_VERSION
 
@@ -82,7 +86,9 @@ def describe(version: tuple[int, int, int] | None) -> str:
     return "an unknown version" if version is None else ".".join(map(str, version))
 
 
-def require_schema(version: tuple[int, int, int] | None, feature: str, exception: type[Exception]) -> tuple[int, int, int]:
+def require_schema(
+    version: tuple[int, int, int] | None, feature: str, exception: type[Exception]
+) -> tuple[int, int, int]:
     """Allow verified/newer releases (newer ones warn); reject older or unknown CLIs."""
     if not schema_supported(version):
         raise exception(

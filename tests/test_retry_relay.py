@@ -30,7 +30,10 @@ def sse(*events):
 CREATED = {"type": "response.created", "response": {"id": "r", "status": "in_progress", "output": []}}
 DELTA = {"type": "response.output_text.delta", "item_id": "m", "output_index": 0, "content_index": 0, "delta": "PONG"}
 COMPLETED = {"type": "response.completed", "response": {"id": "r", "status": "completed", "output": []}}
-FAILED = {"type": "response.failed", "response": {"id": "r", "status": "failed", "error": {"code": "server_error", "message": "backend busy"}}}
+FAILED = {
+    "type": "response.failed",
+    "response": {"id": "r", "status": "failed", "error": {"code": "server_error", "message": "backend busy"}},
+}
 OK_STREAM = sse(CREATED, DELTA, COMPLETED)
 
 
@@ -63,7 +66,9 @@ class Upstream:
 
 
 def call(url):
-    request = urllib.request.Request(url + "/responses", data=b'{"model":"m","input":"hi"}', headers={"Authorization": "Bearer key"}, method="POST")
+    request = urllib.request.Request(
+        url + "/responses", data=b'{"model":"m","input":"hi"}', headers={"Authorization": "Bearer key"}, method="POST"
+    )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             return response.status, response.read(), response.headers
@@ -78,7 +83,12 @@ class RelayTests(unittest.TestCase):
         self.log_path = Path(directory.name) / "retry.log"
 
     def relay(self, upstream, **policy):
-        relay = RetryRelay(upstream.url, RetryPolicy(**{"delay_seconds": 0, "jitter": 0, **policy}), "responses", RetryLog(self.log_path))
+        relay = RetryRelay(
+            upstream.url,
+            RetryPolicy(**{"delay_seconds": 0, "jitter": 0, **policy}),
+            "responses",
+            RetryLog(self.log_path),
+        )
         relay.__enter__()
         self.addCleanup(relay.__exit__, None, None, None)
         self.addCleanup(upstream.close)
@@ -88,7 +98,11 @@ class RelayTests(unittest.TestCase):
         return self.log_path.read_text(encoding="utf-8") if self.log_path.exists() else ""
 
     def test_azure_backend_mismatch_and_no_channel_are_retried(self):
-        upstream = Upstream((400, "application/json", AZURE), (503, "application/json", NO_CHANNEL), (200, "text/event-stream", OK_STREAM))
+        upstream = Upstream(
+            (400, "application/json", AZURE),
+            (503, "application/json", NO_CHANNEL),
+            (200, "text/event-stream", OK_STREAM),
+        )
         self.assertEqual(call(self.relay(upstream))[:2], (200, OK_STREAM))
         self.assertEqual(upstream.requests, ["/v1/responses"] * 3)
         self.assertIn("backend_mismatch (HTTP 400)", self.log())
@@ -125,9 +139,14 @@ class RetryConfigTests(unittest.TestCase):
             save(Config(path=path))
             self.assertNotIn("[retry]", path.read_text(encoding="utf-8"))
             self.assertEqual(retry_policy(load(path)), RetryPolicy())
-            path.write_text("schema_version = 1\n\n[retry]\nenabled = true\nmax_retries = 3\ndelay_seconds = 5\nskip_status = [401, 403]\n", encoding="utf-8")
+            path.write_text(
+                "schema_version = 1\n\n[retry]\nenabled = true\nmax_retries = 3\ndelay_seconds = 5\nskip_status = [401, 403]\n",
+                encoding="utf-8",
+            )
             save(load(path))
-            self.assertEqual(load(path).retry, {"enabled": True, "max_retries": 3, "delay_seconds": 5, "skip_status": [401, 403]})
+            self.assertEqual(
+                load(path).retry, {"enabled": True, "max_retries": 3, "delay_seconds": 5, "skip_status": [401, 403]}
+            )
 
     def test_invalid_values_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -149,8 +168,13 @@ class RetryConfigTests(unittest.TestCase):
 
     def test_codex_points_at_the_relay_with_one_retry_layer(self):
         provider = Provider("demo", "Demo", "https://example.test/v1", auth_secret_ref="demo-key")
-        config = Config(providers={"demo": provider}, secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_KEY")})
-        with patch("codexapter.launcher.shutil.which", return_value="codex.exe"), patch.dict("os.environ", {"DEMO_KEY": "secret"}):
+        config = Config(
+            providers={"demo": provider}, secrets={"demo-key": SecretReference("demo-key", env_var="DEMO_KEY")}
+        )
+        with (
+            patch("codexapter.launcher.shutil.which", return_value="codex.exe"),
+            patch.dict("os.environ", {"DEMO_KEY": "secret"}),
+        ):
             relayed, _ = build_invocation(config, provider, "m", "medium", [], relay_url="http://127.0.0.1:5000/v1")
             plain, _ = build_invocation(config, provider, "m", "medium", [])
         self.assertIn('model_providers.demo.base_url="http://127.0.0.1:5000/v1"', relayed)

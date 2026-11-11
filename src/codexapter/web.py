@@ -8,6 +8,7 @@ import threading
 import webbrowser
 from http import HTTPStatus
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .agent_models import validate_agent_models
@@ -46,7 +47,11 @@ _PROTOCOL_LABELS = {"responses": "Responses", "chat": "Chat Completions", "messa
 def probe_urls(base_url: str, protocol: str) -> tuple[str, str]:
     """Model-list and endpoint URLs exactly as Codex and the gateway use them."""
     prefix = validate_base_url(base_url).rstrip("/")
-    return prefix + "/models", prefix + {"responses": "/responses", "chat": "/chat/completions", "messages": "/messages"}[protocol]
+    return prefix + "/models", prefix + {
+        "responses": "/responses",
+        "chat": "/chat/completions",
+        "messages": "/messages",
+    }[protocol]
 
 
 def detect_connection(config: Config, body: dict, probe=check_connection) -> tuple[dict, list[str]]:
@@ -80,7 +85,9 @@ def detect_connection(config: Config, body: dict, probe=check_connection) -> tup
         body["auth_mode"] = result.auth_mode
         if result.auth_mode == "api_key" and body.get("execution_mode") != "gateway":
             body["execution_mode"] = "gateway"
-            notes.append("This provider needs the x-api-key header, which Codex cannot send itself, so it uses the local gateway.")
+            notes.append(
+                "This provider needs the x-api-key header, which Codex cannot send itself, so it uses the local gateway."
+            )
     if result.official_client_only and protocol == "responses":
         body["execution_mode"] = "direct"
     return body, notes
@@ -133,7 +140,9 @@ def _default_secret_names(provider_id: str) -> tuple[str, str]:
 
 def _new_secret_names(config: Config, provider_id: str) -> tuple[str, str]:
     secret_ref, secret_env = _default_secret_names(provider_id)
-    if secret_ref in config.secrets or any(ref.env_var and ref.env_var.casefold() == secret_env.casefold() for ref in config.secrets.values()):
+    if secret_ref in config.secrets or any(
+        ref.env_var and ref.env_var.casefold() == secret_env.casefold() for ref in config.secrets.values()
+    ):
         raise ConfigError("This provider ID conflicts with an existing API-key name. Choose another provider ID.")
     return secret_ref, secret_env
 
@@ -177,7 +186,9 @@ def persist_change(config: Config, updated: Config, env_var=None, token=None) ->
                 else:
                     atomic_bytes(target, previous)
             except OSError:
-                raise AdapterError("Saving settings and restoring the API key failed. Check local storage permissions.") from None
+                raise AdapterError(
+                    "Saving settings and restoring the API key failed. Check local storage permissions."
+                ) from None
             finally:
                 if process_value is None:
                     os.environ.pop(env_var, None)
@@ -200,7 +211,9 @@ def serve(config: Config) -> int:
             return
 
         def _authorized(self) -> bool:
-            return local_request(self.headers, server.server_port) and token_matches(self.headers.get("X-Codex-Apter-Token", ""), session_token)
+            return local_request(self.headers, server.server_port) and token_matches(
+                self.headers.get("X-Codex-Apter-Token", ""), session_token
+            )
 
         def _json(self, value, status: int = HTTPStatus.OK):
             body = json.dumps(value, ensure_ascii=False).encode("utf-8")
@@ -339,7 +352,7 @@ def serve(config: Config) -> int:
                 if urlparse(self.path).path == "/api/models/refresh":
                     self._refresh(body)
                     return
-                self._notes = []
+                self._notes: list[str] = []
                 if urlparse(self.path).path == "/api/provider":
                     # Network checks run before taking the settings lock.
                     body, self._notes = detect_connection(config, body)
@@ -348,7 +361,10 @@ def serve(config: Config) -> int:
             except TimeoutError:
                 self._json({"error": "Setup request timed out."}, HTTPStatus.REQUEST_TIMEOUT)
             except OSError:
-                self._json({"error": "Could not save settings. Check local storage permissions."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                self._json(
+                    {"error": "Could not save settings. Check local storage permissions."},
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
             except (AdapterError, ValueError) as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
@@ -362,10 +378,12 @@ def serve(config: Config) -> int:
                 identity = _identity(provider, snapshot, token=credential)
                 budget = Deadline(15)
                 refreshes.add(budget)
-            entries = []
+            entries: list[Any] = []
             try:
                 with budget:
-                    models = fetch_models(snapshot, provider, cache_sink=entries.append, budget=budget, token=credential)
+                    models = fetch_models(
+                        snapshot, provider, cache_sink=entries.append, budget=budget, token=credential
+                    )
                 with state_lock, guard.edit():
                     current = config.providers.get(provider.id)
                     if (
@@ -404,25 +422,40 @@ def serve(config: Config) -> int:
                     display_name = str(body.get("display_name", "")).strip()
                     base_url = validate_base_url(body.get("base_url", ""))
                     current = config.providers.get(provider_id)
-                    protocol = normalize_protocol(str(body.get("protocol", current.protocol if current else "responses")))
+                    protocol = normalize_protocol(
+                        str(body.get("protocol", current.protocol if current else "responses"))
+                    )
                     if protocol not in {"responses", "chat", "messages"}:
                         raise ConfigError("Choose Responses, Chat Completions, or Messages.")
                     execution_mode = str(body.get("execution_mode", current.execution_mode if current else "gateway"))
-                    if execution_mode not in {"direct", "gateway"} or (protocol != "responses" and execution_mode != "gateway"):
+                    if execution_mode not in {"direct", "gateway"} or (
+                        protocol != "responses" and execution_mode != "gateway"
+                    ):
                         raise ConfigError("Chat Completions and Messages providers require gateway mode.")
-                    max_tokens = body.get("gateway_max_output_tokens", current.gateway_max_output_tokens if current else DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS)
+                    max_tokens = body.get(
+                        "gateway_max_output_tokens",
+                        current.gateway_max_output_tokens if current else DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+                    )
                     system_models = validate_system_models(
-                        body.get("messages_system_models", current.messages_system_models if current else []), protocol, execution_mode
+                        body.get("messages_system_models", current.messages_system_models if current else []),
+                        protocol,
+                        execution_mode,
                     )
                     capabilities_file, require_verified = validate_capability_settings(
                         body.get("capabilities_file", current.capabilities_file if current else ""),
-                        body.get("require_verified_capabilities", current.require_verified_capabilities if current else False),
+                        body.get(
+                            "require_verified_capabilities", current.require_verified_capabilities if current else False
+                        ),
                         execution_mode,
                     )
                     public_reasoning = validate_public_reasoning(
-                        body.get("public_reasoning", current.public_reasoning if current else False), protocol, execution_mode
+                        body.get("public_reasoning", current.public_reasoning if current else False),
+                        protocol,
+                        execution_mode,
                     )
-                    upstream_reasoning = str(body.get("upstream_reasoning", current.upstream_reasoning if current else "auto"))
+                    upstream_reasoning = str(
+                        body.get("upstream_reasoning", current.upstream_reasoning if current else "auto")
+                    )
                     if upstream_reasoning not in {"auto", "provider_default", "disabled", "openrouter_disabled"} or (
                         execution_mode != "gateway" and upstream_reasoning not in {"auto", "provider_default"}
                     ):
@@ -448,13 +481,18 @@ def serve(config: Config) -> int:
                         display_name=display_name,
                         base_url=base_url,
                         protocol=protocol,
-                        auth_mode=validate_auth_mode(body.get("auth_mode", current.auth_mode if current else "bearer"), execution_mode),
+                        auth_mode=validate_auth_mode(
+                            body.get("auth_mode", current.auth_mode if current else "bearer"), execution_mode
+                        ),
                         client_tool_search=validate_client_tool_search(
-                            body.get("client_tool_search", current.client_tool_search if current else "reject"), protocol, execution_mode
+                            body.get("client_tool_search", current.client_tool_search if current else "reject"),
+                            protocol,
+                            execution_mode,
                         ),
                         execution_mode=execution_mode,
                         auth_secret_ref=secret_ref,
-                        default_model=str(body.get("default_model", "")).strip() or (current.default_model if current else None),
+                        default_model=str(body.get("default_model", "")).strip()
+                        or (current.default_model if current else None),
                         discovery=copy.deepcopy(current.discovery) if current else Discovery(enabled=True),
                         gateway_max_output_tokens=max_tokens,
                         upstream_reasoning=upstream_reasoning,
@@ -462,10 +500,18 @@ def serve(config: Config) -> int:
                         capabilities_file=capabilities_file,
                         require_verified_capabilities=require_verified,
                         public_reasoning=public_reasoning,
-                        gateway_limits=validate_gateway_limits(body.get("gateway_limits", current.gateway_limits if current else {}), execution_mode),
-                        gateway_runtime=validate_gateway_runtime(body.get("gateway_runtime", current.gateway_runtime if current else {}), execution_mode),
-                        agent_models=validate_agent_models(body.get("agent_models", current.agent_models if current else {"policy": "selected"})),
-                        model_limits=validate_model_limits(body.get("model_limits", current.model_limits if current else {})),
+                        gateway_limits=validate_gateway_limits(
+                            body.get("gateway_limits", current.gateway_limits if current else {}), execution_mode
+                        ),
+                        gateway_runtime=validate_gateway_runtime(
+                            body.get("gateway_runtime", current.gateway_runtime if current else {}), execution_mode
+                        ),
+                        agent_models=validate_agent_models(
+                            body.get("agent_models", current.agent_models if current else {"policy": "selected"})
+                        ),
+                        model_limits=validate_model_limits(
+                            body.get("model_limits", current.model_limits if current else {})
+                        ),
                     )
                     api_key = str(body.get("api_key", ""))
                     if "discovery" in body:
@@ -516,7 +562,9 @@ def serve(config: Config) -> int:
                     self._delete()
             except (OSError, AdapterError, ValueError):
                 self._json(
-                    {"error": "Could not remove provider; settings were not committed. Reopen setup if settings changed elsewhere."},
+                    {
+                        "error": "Could not remove provider; settings were not committed. Reopen setup if settings changed elsewhere."
+                    },
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
 

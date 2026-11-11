@@ -9,12 +9,26 @@ from codexapter.errors import ConfigError, LaunchError
 
 
 def make_config(tmp_path, options):
-    provider = Provider("fixture", "Fixture", "https://example.invalid/v1", agent_models=options, auth_secret_ref="main")
-    config = Config(providers={"fixture": provider}, secrets={"main": SecretReference("main", env_var="FIXTURE_TOKEN")}, path=tmp_path / "config.toml")
+    provider = Provider(
+        "fixture", "Fixture", "https://example.invalid/v1", agent_models=options, auth_secret_ref="main"
+    )
+    config = Config(
+        providers={"fixture": provider},
+        secrets={"main": SecretReference("main", env_var="FIXTURE_TOKEN")},
+        path=tmp_path / "config.toml",
+    )
     return config, provider
 
 
-@pytest.mark.parametrize("options", [{}, {"policy": "inherit"}, {"policy": "selected"}, {"policy": "custom", "default": "provider/worker", "effort": "low"}])
+@pytest.mark.parametrize(
+    "options",
+    [
+        {},
+        {"policy": "inherit"},
+        {"policy": "selected"},
+        {"policy": "custom", "default": "provider/worker", "effort": "low"},
+    ],
+)
 def test_config_roundtrip_and_public_snapshot(tmp_path, monkeypatch, options):
     from codexapter import web
 
@@ -112,7 +126,12 @@ def test_selected_policy_is_child_only_and_keeps_auth_and_main_effort(tmp_path, 
         monkeypatch.setattr(launcher, "cross_protocol_overrides", lambda _: [])
     before = dict(os.environ)
     args, env = launcher.build_invocation(
-        config, provider, "provider/selected", "high", [], **({"gateway_url": "http://127.0.0.1:4567", "gateway_token": "synthetic-local"} if gateway else {})
+        config,
+        provider,
+        "provider/selected",
+        "high",
+        [],
+        **({"gateway_url": "http://127.0.0.1:4567", "gateway_token": "synthetic-local"} if gateway else {}),
     )
     assert os.environ == before
     assert env["UNRELATED_SETTING"] == "preserve-me"
@@ -135,7 +154,9 @@ def test_explicit_policy_on_unknown_version_fails_before_launch(tmp_path, monkey
 
 def test_custom_policy_has_explicit_precedence_and_effort(monkeypatch):
     monkeypatch.setattr(agent_models, "detect_version", lambda _: (0, 166, 0))
-    settings = agent_models.agent_overrides(["fixture"], {"policy": "custom", "default": "provider/worker", "effort": "low"}, "provider/main", "high")
+    settings = agent_models.agent_overrides(
+        ["fixture"], {"policy": "custom", "default": "provider/worker", "effort": "low"}, "provider/main", "high"
+    )
     assert 'agents.default_subagent_model="provider/worker"' in settings
     assert 'agents.default_subagent_reasoning_effort="low"' in settings
     assert not any(value.startswith("model_reasoning_effort=") for value in settings)

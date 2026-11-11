@@ -20,7 +20,9 @@ from codexapter.web import public_config
 @pytest.mark.parametrize("auth", ["bearer", "api_key"])
 def test_authentication_is_independent_of_protocol_and_survives_reload(tmp_path, protocol, auth):
     pytest.importorskip("protoverta")
-    provider = Provider("demo", "Demo", "https://example.test/v1", protocol=protocol, execution_mode="gateway", auth_mode=auth)
+    provider = Provider(
+        "demo", "Demo", "https://example.test/v1", protocol=protocol, execution_mode="gateway", auth_mode=auth
+    )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     save(config)
     restored = load(config.path)
@@ -33,7 +35,10 @@ def test_authentication_is_independent_of_protocol_and_survives_reload(tmp_path,
 
 def test_old_messages_auth_is_preserved_without_changing_new_provider_default(tmp_path):
     path = tmp_path / "config.toml"
-    path.write_text('[providers.demo]\nbase_url="https://example.test/v1"\nprotocol="messages"\nexecution_mode="gateway"\n', encoding="utf-8")
+    path.write_text(
+        '[providers.demo]\nbase_url="https://example.test/v1"\nprotocol="messages"\nexecution_mode="gateway"\n',
+        encoding="utf-8",
+    )
     assert load(path).providers["demo"].auth_mode == "api_key"
     assert Provider("new", "New", "https://example.test/v1").auth_mode == "bearer"
 
@@ -46,7 +51,14 @@ def test_invalid_or_unusable_auth_is_rejected(value, mode):
 
 def test_client_search_policy_persists_and_reaches_gateway(tmp_path):
     pytest.importorskip("protoverta")
-    provider = Provider("demo", "Demo", "https://example.test/v1", protocol="chat", execution_mode="gateway", client_tool_search="function")
+    provider = Provider(
+        "demo",
+        "Demo",
+        "https://example.test/v1",
+        protocol="chat",
+        execution_mode="gateway",
+        client_tool_search="function",
+    )
     config = Config(providers={"demo": provider}, path=tmp_path / "config.toml")
     save(config)
     restored = load(config.path)

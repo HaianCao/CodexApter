@@ -84,7 +84,10 @@ class CatalogTests(unittest.TestCase):
 
     def test_oversized_catalog_response_is_rejected(self):
         provider = Provider("demo", "Demo", "https://example.test/v1", discovery=Discovery(enabled=True))
-        with patch("codexapter.catalog._open", return_value=_Response(b"x" * 8_000_001)), self.assertRaises(DiscoveryError):
+        with (
+            patch("codexapter.catalog._open", return_value=_Response(b"x" * 8_000_001)),
+            self.assertRaises(DiscoveryError),
+        ):
             fetch_models(Config(providers={"demo": provider}), provider)
 
 

@@ -66,7 +66,12 @@ def store_token(env_var: str, token: str, path: Path | None = None, *, config: C
     target = path or env_file_path(config)
     values = _read_dotenv(target)
     values[env_var] = token
-    atomic_bytes(target, "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode("utf-8"))
+    atomic_bytes(
+        target,
+        "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode(
+            "utf-8"
+        ),
+    )
     os.environ[env_var] = token
 
 
@@ -77,7 +82,12 @@ def remove_token(env_var: str, path: Path | None = None, *, config: Config | Non
     values.pop(env_var, None)
     if target.exists():
         if values:
-            atomic_bytes(target, "".join(f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())).encode("utf-8"))
+            atomic_bytes(
+                target,
+                "".join(
+                    f"{key}={json.dumps(value, ensure_ascii=False)}\n" for key, value in sorted(values.items())
+                ).encode("utf-8"),
+            )
         else:
             target.unlink()
     os.environ.pop(env_var, None)

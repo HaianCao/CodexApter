@@ -62,7 +62,9 @@ def test_non_ascii_query_and_header_are_unauthorized_not_handler_errors(tmp_path
                 urlopen(request, timeout=2)
             with error.value as response:
                 assert response.code == 403
-        with urlopen(Request(f"http://{url.netloc}/api/config", headers={"X-Codex-Apter-Token": token}), timeout=2) as response:
+        with urlopen(
+            Request(f"http://{url.netloc}/api/config", headers={"X-Codex-Apter-Token": token}), timeout=2
+        ) as response:
             assert response.status == 200
 
 
@@ -81,8 +83,15 @@ def test_invalid_url_is_rejected_without_changing_provider_or_key(tmp_path, monk
     with listener(tmp_path, monkeypatch) as (_, url, token, _):
         origin = f"http://{url.netloc}"
         headers = {"X-Codex-Apter-Token": token, "Content-Type": "application/json"}
-        body = {"id": "fixture", "display_name": "Fixture", "base_url": "https://example.test/api/v1", "api_key": "synthetic-stored"}
-        with urlopen(Request(origin + "/api/provider", data=json.dumps(body).encode(), headers=headers), timeout=3) as response:
+        body = {
+            "id": "fixture",
+            "display_name": "Fixture",
+            "base_url": "https://example.test/api/v1",
+            "api_key": "synthetic-stored",
+        }
+        with urlopen(
+            Request(origin + "/api/provider", data=json.dumps(body).encode(), headers=headers), timeout=3
+        ) as response:
             assert response.status == 200
         config_before = (tmp_path / "config.toml").read_bytes()
         key_before = (tmp_path / ".env").read_bytes()
@@ -126,7 +135,9 @@ def test_header_deadline_capacity_and_recovery(tmp_path, monkeypatch):
             while server._active and time.monotonic() < deadline:
                 time.sleep(0.01)
             assert not server._active
-            with urlopen(Request(f"http://{url.netloc}/api/config", headers={"X-Codex-Apter-Token": token}), timeout=2) as response:
+            with urlopen(
+                Request(f"http://{url.netloc}/api/config", headers={"X-Codex-Apter-Token": token}), timeout=2
+            ) as response:
                 assert response.status == 200
         finally:
             for client in clients:
@@ -134,7 +145,10 @@ def test_header_deadline_capacity_and_recovery(tmp_path, monkeypatch):
 
 
 def test_trickling_body_has_absolute_deadline(tmp_path, monkeypatch):
-    with listener(tmp_path, monkeypatch) as (server, url, token, _), socket.create_connection(server.server_address, timeout=2) as client:
+    with (
+        listener(tmp_path, monkeypatch) as (server, url, token, _),
+        socket.create_connection(server.server_address, timeout=2) as client,
+    ):
         headers = f"POST /api/provider HTTP/1.0\r\nHost: {url.netloc}\r\nX-Codex-Apter-Token: {token}\r\nContent-Length: 1000\r\n\r\n".encode()
         client.sendall(headers + b"{")
         for _ in range(2):
@@ -145,7 +159,10 @@ def test_trickling_body_has_absolute_deadline(tmp_path, monkeypatch):
 
 
 def test_shutdown_closes_pending_header_clients(tmp_path, monkeypatch):
-    with listener(tmp_path, monkeypatch) as (server, _, _, _), socket.create_connection(server.server_address, timeout=2) as client:
+    with (
+        listener(tmp_path, monkeypatch) as (server, _, _, _),
+        socket.create_connection(server.server_address, timeout=2) as client,
+    ):
         client.sendall(b"GET / HTTP/1.0\r\nX-Fixture:")
         server.shutdown()
         server.server_close()
@@ -178,7 +195,10 @@ def test_deep_json_returns_400_without_mutation_and_valid_post_recovers(tmp_path
                 return json.load(response)
 
         def files():
-            return {name: (tmp_path / name).read_bytes() if (tmp_path / name).exists() else None for name in ("config.toml", ".env")}
+            return {
+                name: (tmp_path / name).read_bytes() if (tmp_path / name).exists() else None
+                for name in ("config.toml", ".env")
+            }
 
         before, saved = state(), files()
         # Valid JSON below the body byte cap, but beyond the decoder's nesting.
@@ -191,7 +211,11 @@ def test_deep_json_returns_400_without_mutation_and_valid_post_recovers(tmp_path
             actual_overflow = True
         # Decoder stack limits vary by OS/Python. Also inject the exception so
         # this boundary contract is exercised even where this payload parses.
-        decoder = patch.object(web.json, "loads", side_effect=RecursionError("private decoder detail")) if force_decoder_error else nullcontext()
+        decoder = (
+            patch.object(web.json, "loads", side_effect=RecursionError("private decoder detail"))
+            if force_decoder_error
+            else nullcontext()
+        )
         with decoder, pytest.raises(HTTPError) as error:
             urlopen(Request(f"http://{url.netloc}/api/provider", data=data, headers=headers), timeout=2)
         with error.value as response:
@@ -202,6 +226,8 @@ def test_deep_json_returns_400_without_mutation_and_valid_post_recovers(tmp_path
         assert state() == before and files() == saved
 
         valid = {"id": "fixture", "display_name": "Fixture", "base_url": "https://example.invalid/v1"}
-        with urlopen(Request(f"http://{url.netloc}/api/provider", data=json.dumps(valid).encode(), headers=headers), timeout=2) as response:
+        with urlopen(
+            Request(f"http://{url.netloc}/api/provider", data=json.dumps(valid).encode(), headers=headers), timeout=2
+        ) as response:
             assert response.status == 200
         assert [provider["id"] for provider in state()["providers"]] == ["fixture"]

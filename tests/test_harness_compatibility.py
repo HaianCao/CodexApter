@@ -37,7 +37,15 @@ def reset_probe_cache():
 
 def test_parse_exact_release_and_reject_ambiguous_output():
     assert harness.parse_version(b"codex-cli 0.166.0\r\n") == (0, 166, 0)
-    for raw in (b"", b"1.2", b"not-a-cli 1.2.3", b"codex-cli 0.166.0-dev", b"x" * 257, b"codex-cli 0.166.0\ncodex-cli 0.166.0", b"\xff"):
+    for raw in (
+        b"",
+        b"1.2",
+        b"not-a-cli 1.2.3",
+        b"codex-cli 0.166.0-dev",
+        b"x" * 257,
+        b"codex-cli 0.166.0\ncodex-cli 0.166.0",
+        b"\xff",
+    ):
         assert harness.parse_version(raw) is None
 
 

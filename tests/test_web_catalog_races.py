@@ -14,7 +14,8 @@ def test_late_catalog_results_cannot_change_current_provider(scenario):
     if not node:
         pytest.skip("Node is required for the frontend async regression harness")
     functions = "\n".join(
-        re.search(r"    async function " + name + r"\(\)\{.*?\n    \}", _HTML, re.DOTALL).group(0) for name in ("loadModels", "refreshModels")
+        re.search(r"    async function " + name + r"\(\)\{.*?\n    \}", _HTML, re.DOTALL).group(0)
+        for name in ("loadModels", "refreshModels")
     )
     harness = r"""
 const assert=require('node:assert/strict');

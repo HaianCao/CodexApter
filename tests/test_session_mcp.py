@@ -9,7 +9,14 @@ from codexapter.mcp import codex_overrides, load_servers
 def test_mcp_uses_only_explicit_env_names_not_values(tmp_path):
     path = tmp_path / "servers.json"
     path.write_text(
-        json.dumps({"mcpServers": {"search": {"command": sys.executable, "args": ["-m", "example"], "env_vars": ["SEARCH_TOKEN"]}}}), encoding="utf-8"
+        json.dumps(
+            {
+                "mcpServers": {
+                    "search": {"command": sys.executable, "args": ["-m", "example"], "env_vars": ["SEARCH_TOKEN"]}
+                }
+            }
+        ),
+        encoding="utf-8",
     )
     settings = codex_overrides(load_servers(str(path)))
     assert 'mcp_servers.search.env_vars=["SEARCH_TOKEN"]' in settings

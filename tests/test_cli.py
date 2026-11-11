@@ -10,7 +10,11 @@ from codexapter.config import Config, Provider
 class CliTests(unittest.TestCase):
     def test_help_uses_new_command_name(self):
         output = io.StringIO()
-        with patch("sys.argv", ["codex-ca", "--help"]), contextlib.redirect_stdout(output), self.assertRaises(SystemExit):
+        with (
+            patch("sys.argv", ["codex-ca", "--help"]),
+            contextlib.redirect_stdout(output),
+            self.assertRaises(SystemExit),
+        ):
             main()
         self.assertIn("usage: codex-ca", output.getvalue())
 
@@ -19,12 +23,18 @@ class CliTests(unittest.TestCase):
 
     def test_doctor_returns_nonzero_for_failed_check(self):
         config = self._config()
-        with patch("codexapter.cli.load", return_value=config), patch("codexapter.cli.doctor", return_value=[("Responses", "FAIL: HTTP 404")]):
+        with (
+            patch("codexapter.cli.load", return_value=config),
+            patch("codexapter.cli.doctor", return_value=[("Responses", "FAIL: HTTP 404")]),
+        ):
             self.assertEqual(main(["doctor", "-p", "demo", "-m", "test-model"]), 1)
 
     def test_doctor_returns_zero_for_warnings_without_failure(self):
         config = self._config()
-        with patch("codexapter.cli.load", return_value=config), patch("codexapter.cli.doctor", return_value=[("Model discovery", "WARN: unavailable")]):
+        with (
+            patch("codexapter.cli.load", return_value=config),
+            patch("codexapter.cli.doctor", return_value=[("Model discovery", "WARN: unavailable")]),
+        ):
             self.assertEqual(main(["doctor", "-p", "demo", "-m", "test-model"]), 0)
 
 

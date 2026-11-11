@@ -19,10 +19,18 @@ def probe_responses(config: Config, provider: Provider, model: str, *, timeout: 
     except (AdapterError, OSError) as exc:
         return f"SKIP: credentials unavailable ({exc})."
 
-    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "CodexApter/0.1 (codex-ca)"}
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "CodexApter/0.1 (codex-ca)",
+    }
     if token:
-        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = token if provider.auth_mode == "api_key" else f"Bearer {token}"
-    body = json.dumps({"model": model, "input": "Reply with exactly: pong", "stream": False, "max_output_tokens": 16}).encode("utf-8")
+        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = (
+            token if provider.auth_mode == "api_key" else f"Bearer {token}"
+        )
+    body = json.dumps(
+        {"model": model, "input": "Reply with exactly: pong", "stream": False, "max_output_tokens": 16}
+    ).encode("utf-8")
     request = Request(f"{provider.base_url.rstrip('/')}/responses", data=body, headers=headers, method="POST")
     try:
         with _open(request, timeout=timeout) as response:

@@ -42,7 +42,11 @@ def _parser() -> argparse.ArgumentParser:
     check = commands.add_parser("doctor", help="Validate provider setup")
     _add_selection(check)
     check.add_argument("--allow-live", action="store_true", help="Allow bounded provider route checks (may incur cost)")
-    check.add_argument("--check", action="append", choices=["text", "streaming", "tools", "streaming_tools", "tool_result", "history_replay"])
+    check.add_argument(
+        "--check",
+        action="append",
+        choices=["text", "streaming", "tools", "streaming_tools", "tool_result", "history_replay"],
+    )
     check.add_argument("--report", help="Write positive route evidence to a new JSON file")
     migrate = commands.add_parser("migrate", help="Plan a cross-provider migrated session")
     migrate.add_argument("--from", dest="source", required=True, help="Source session ID")
@@ -61,7 +65,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = load(args.config, allow_legacy_protocols=args.command == "setup")
         if args.command is None and not config.providers:
-            print("No provider is set up yet. Opening CodexApter setup: add your endpoint and API key there.", file=sys.stderr)
+            print(
+                "No provider is set up yet. Opening CodexApter setup: add your endpoint and API key there.",
+                file=sys.stderr,
+            )
             return serve(config)
         if args.command is None:
             provider, model, reasoning = config.resolve(None, None, None)
@@ -85,7 +92,9 @@ def main(argv: list[str] | None = None) -> int:
             if provider.execution_mode == "gateway" or args.check or args.report:
                 from .route_doctor import route_doctor
 
-                checks = route_doctor(config, provider, model, allow_live=args.allow_live, checks=args.check, report=args.report)
+                checks = route_doctor(
+                    config, provider, model, allow_live=args.allow_live, checks=args.check, report=args.report
+                )
                 for item in checks:
                     print(f"{item['case']}: {item['outcome']} ({item['requests']} requests, {item['duration_ms']} ms)")
                 return 0 if all(item["passed"] for item in checks) else 1
@@ -95,7 +104,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if any(status.startswith("FAIL:") for _, status in results) else 0
         if args.command == "migrate":
             print(f"Migration plan: {args.source} -> new {provider.id}/{model}; scope={args.scope}.")
-            print("Transcript extraction is intentionally not implemented until the installed Codex session format is contract-tested.")
+            print(
+                "Transcript extraction is intentionally not implemented until the installed Codex session format is contract-tested."
+            )
             return 2
         extra = _without_separator(args.codex_args)
         if args.command in {"exec", "resume"}:

@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import time
 import uuid
 from contextlib import nullcontext
-from dataclasses import replace
 from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -15,7 +15,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from .config import Config, Provider, cache_path, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
-from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler
+from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler, attach_deadline
 from .settings_store import SettingsGuard
 
 _UNSET = object()
@@ -33,7 +33,11 @@ def cached_model_names(config, provider, identifiers, *, token=_UNSET):
         if entry.get("identity") != _identity(provider, config, token=token):
             return {}
         saved, now = entry.get("fetched_at"), time.time()
-        if type(saved) not in (int, float) or not 0 <= saved <= now or now - saved > provider.discovery.cache_ttl_seconds:
+        if (
+            type(saved) not in (int, float)
+            or not 0 <= saved <= now
+            or now - saved > provider.discovery.cache_ttl_seconds
+        ):
             return {}
         wanted = set(identifiers)
         info = entry.get("model_info", [])
@@ -115,7 +119,13 @@ def _identity(provider: Provider, config=None, *, token=_UNSET) -> dict:
 # Token limits that providers report in their model lists. These are the
 # provider's own numbers (OpenRouter and TokenHarbor report them; NVIDIA NIM
 # does not); nothing is estimated. The first positive integer found wins.
-_CONTEXT_FIELDS = ("context_window_tokens", "context_window", "context_length", "max_input_tokens", "top_provider.context_length")
+_CONTEXT_FIELDS = (
+    "context_window_tokens",
+    "context_window",
+    "context_length",
+    "max_input_tokens",
+    "top_provider.context_length",
+)
 _OUTPUT_FIELDS = ("max_output_tokens", "max_completion_tokens", "top_provider.max_completion_tokens")
 _GATEWAY_CONTEXT_FIELD, _GATEWAY_OUTPUT_FIELD = "context_length", "top_provider.max_completion_tokens"
 _MAX_REPORTED_TOKENS = 2**31 - 1
@@ -133,7 +143,10 @@ def _reported_number(entry, paths):
 
 def reported_limits(entry) -> dict:
     """``context_window_tokens`` and ``max_output_tokens`` a model list reports, or ``None``."""
-    return {"context_window_tokens": _reported_number(entry, _CONTEXT_FIELDS), "max_output_tokens": _reported_number(entry, _OUTPUT_FIELDS)}
+    return {
+        "context_window_tokens": _reported_number(entry, _CONTEXT_FIELDS),
+        "max_output_tokens": _reported_number(entry, _OUTPUT_FIELDS),
+    }
 
 
 def _present_limits(entry) -> dict:
@@ -202,6 +215,14 @@ def _write_cache(data: dict, path: Path | None = None) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _note_skipped(items):
+    """Tell the user when the provider's catalog had entries that were left out."""
+    skipped = getattr(items, "skipped", 0)
+    if skipped:
+        noun = "entry" if skipped == 1 else "entries"
+        print(f"Note: skipped {skipped} invalid {noun} in the provider's model list.", file=sys.stderr)
+
+
 def cached_models(provider: Provider, path: Path | None = None, *, config=None) -> tuple[list[str], bool]:
     entry = _read_cache(path).get("providers", {}).get(provider.id, {})
     if not isinstance(entry, dict) or entry.get("identity") != _identity(provider, config):
@@ -211,7 +232,12 @@ def cached_models(provider: Provider, path: Path | None = None, *, config=None) 
         models = []
     fetched_at, now = entry.get("fetched_at"), time.time()
     # Avoid float conversion of untrusted, potentially huge JSON integers.
-    stale = type(fetched_at) not in (int, float) or not 0 <= fetched_at <= now or now - fetched_at > provider.discovery.cache_ttl_seconds
+    stale = (
+        isinstance(fetched_at, bool)
+        or not isinstance(fetched_at, int | float)
+        or not 0 <= fetched_at <= now
+        or now - fetched_at > provider.discovery.cache_ttl_seconds
+    )
     return [item for item in models if isinstance(item, str)], stale
 
 
@@ -227,7 +253,14 @@ def store_catalog(provider_id, entry, cache=None):
 
 
 def fetch_models(
-    config: Config, provider: Provider, *, cache: Path | None = None, timeout: float = 15.0, cache_sink=None, budget=None, token=_UNSET
+    config: Config,
+    provider: Provider,
+    *,
+    cache: Path | None = None,
+    timeout: float = 15.0,
+    cache_sink=None,
+    budget=None,
+    token=_UNSET,
 ) -> list[str]:
     if not provider.discovery.enabled:
         raise DiscoveryError(f"Provider '{provider.id}' does not expose model discovery.")
@@ -241,7 +274,9 @@ def fetch_models(
         token = resolve_token(config, provider, required=False)
     identity = _identity(provider, config, token=token)
     if token:
-        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = token if provider.auth_mode == "api_key" else f"Bearer {token}"
+        headers["x-api-key" if provider.auth_mode == "api_key" else "Authorization"] = (
+            token if provider.auth_mode == "api_key" else f"Bearer {token}"
+        )
     if provider.execution_mode == "gateway":
         try:
             from protoverta.discovery import CatalogPolicy, fetch_catalog
@@ -253,6 +288,7 @@ def fetch_models(
                 pagination="after_id" if provider.protocol == "messages" else "none",
                 context_field=_GATEWAY_CONTEXT_FIELD,
                 output_field=_GATEWAY_OUTPUT_FIELD,
+                invalid_entries="skip",
             )
             if policy_file:
                 path = Path(policy_file).expanduser()
@@ -263,22 +299,19 @@ def fetch_models(
             if budget is not None:
 
                 def upstream_open(request, *, timeout):
-                    request.adapter_deadline = budget
+                    attach_deadline(request, budget)
                     return _open(request, timeout=min(timeout, budget.remaining()))
 
                 options["upstream_open"] = upstream_open
-            try:
-                items = fetch_catalog(provider.base_url, headers, policy, **options)
-            except ValueError as exc:
-                # A provider may report limits in another shape; the strict
-                # parser then rejects the page. Limits are optional, so list
-                # the models without them rather than failing discovery.
-                if policy_file or "token limits" not in str(exc):
-                    raise
-                items = fetch_catalog(provider.base_url, headers, replace(policy, context_field=None, output_field=None), **options)
+            # Skip mode lists every model with a valid ID; malformed optional
+            # metadata such as token limits is dropped, never guessed.
+            items = fetch_catalog(provider.base_url, headers, policy, **options)
+            _note_skipped(items)
             info = [item.as_dict() for item in items]
         except ImportError:
-            raise DiscoveryError("Gateway discovery requires the matching Protoverta preview.") from None
+            raise DiscoveryError(
+                "Gateway discovery needs the Protoverta component. Run the installer command again to repair it."
+            ) from None
         except (ValueError, OSError, TypeError):
             raise DiscoveryError("Gateway catalog failed validation or exceeded its resource budget.") from None
         models = [item["id"] for item in info]
@@ -293,7 +326,7 @@ def fetch_models(
     request = Request(provider.base_url + provider.discovery.path, headers=headers, method="GET")
     try:
         with nullcontext(budget) if budget is not None else Deadline(timeout) as active_budget:
-            request.adapter_deadline = active_budget
+            attach_deadline(request, active_budget)
             with _open(request, timeout=active_budget.remaining()) as response:
                 raw = response.read(8_000_001)
                 active_budget.remaining()
@@ -314,7 +347,13 @@ def fetch_models(
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, list):
         raise DiscoveryError("Model discovery response does not contain a 'data' list.")
-    models = sorted({item["id"].strip() for item in data if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()})
+    models = sorted(
+        {
+            item["id"].strip()
+            for item in data
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()
+        }
+    )
     if not models:
         raise DiscoveryError("Model discovery returned no usable model IDs.")
     info = []
