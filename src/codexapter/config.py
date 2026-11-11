@@ -8,7 +8,6 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, overload
-from urllib.parse import urlsplit
 
 try:
     from protoverta.error_classes import RetryPolicy
@@ -16,6 +15,7 @@ except ImportError:  # A broken install must still open the setup page.
     RetryPolicy = None  # type: ignore[assignment,misc]
 
 from .errors import ConfigError
+from .provider_url import normalize_base_url
 from .toml_text import toml_value
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -325,30 +325,10 @@ def _check_id(value: str, label: str) -> None:
 
 
 def validate_base_url(value: str) -> str:
-    if not isinstance(value, str) or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
-        raise ConfigError("Provider base URL must be text without whitespace or control characters.")
     try:
-        parsed = urlsplit(value)
-        port = parsed.port  # Force validation of a malformed port number.
+        return normalize_base_url(value)
     except ValueError as exc:
-        raise ConfigError("Provider base URL is invalid.") from exc
-    if (
-        not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ConfigError("Provider base URL must be an HTTPS URL without credentials, query, or fragment.")
-    if port is not None and port < 1:
-        raise ConfigError("Provider base URL port must be between 1 and 65535.")
-    if parsed.scheme.lower() != "https" and not (
-        parsed.scheme.lower() == "http" and parsed.hostname.lower() in {"localhost", "127.0.0.1", "::1"}
-    ):
-        raise ConfigError("Provider base URL must use HTTPS (HTTP is allowed only for localhost/loopback).")
-    if parsed.path.rstrip("/").endswith(("/responses", "/messages", "/chat/completions")):
-        raise ConfigError("Enter the base URL, for example https://provider.example/v1, without the endpoint suffix.")
-    return value.rstrip("/")
+        raise ConfigError(str(exc)) from None
 
 
 def load(path: Path | None = None, *, allow_legacy_protocols: bool = False) -> Config:

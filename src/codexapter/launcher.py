@@ -28,17 +28,9 @@ from .gateway_options import runtime_options, session_options, validate_gateway_
 from .harness import cross_protocol_overrides
 from .mcp import codex_overrides, load_servers
 from .model_catalog import catalog_override
+from .provider_url import bypass_loopback_proxy
 from .subagents import subagent_overrides
 from .toml_text import toml_value
-
-
-def _bypass_loopback_proxy(env: dict[str, str]) -> None:
-    entries = [
-        value.strip() for key in ("NO_PROXY", "no_proxy") for value in env.get(key, "").split(",") if value.strip()
-    ]
-    entries.extend(("127.0.0.1", "localhost", "::1"))
-    merged = ",".join({value.casefold(): value for value in entries}.values())
-    env.update(NO_PROXY=merged, no_proxy=merged)
 
 
 def _retry_idle_ms(policy) -> int:
@@ -90,7 +82,7 @@ def build_invocation(
         env_name = "CODEX_CA_GATEWAY_TOKEN"
         env[env_name] = gateway_token
         base_url = gateway_url.rstrip("/") + "/v1"
-        _bypass_loopback_proxy(env)
+        bypass_loopback_proxy(env)
     elif provider.protocol == "responses" and provider.execution_mode in {"direct", "auto"}:
         base_url = relay_url or configured_base_url
     else:
