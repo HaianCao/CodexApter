@@ -88,7 +88,14 @@ def detect_connection(config: Config, body: dict, probe=check_connection) -> tup
             notes.append(
                 "This provider needs the x-api-key header, which Codex cannot send itself, so it uses the local gateway."
             )
-    if result.official_client_only and protocol == "responses":
+    if result.official_client_only:
+        # Only Codex itself is accepted, so it must reach the provider directly,
+        # which works with the Responses API alone.
+        if protocol != "responses":
+            body["protocol"] = "responses"
+            notes.append(
+                "Codex can reach this provider only with its own Responses API, so the API was set to Responses."
+            )
         body["execution_mode"] = "direct"
     return body, notes
 

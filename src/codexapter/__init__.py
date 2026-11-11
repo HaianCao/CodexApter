@@ -1,3 +1,3 @@
 """Codex multi-provider adapter."""
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

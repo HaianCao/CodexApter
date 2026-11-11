@@ -8,7 +8,7 @@
   <p>
     <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-5a4fcf?style=flat-square"></a>
     <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white">
-    <img alt="Windows" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square&logo=windows&logoColor=white">
+    <img alt="Windows, Linux and macOS" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-0078d4?style=flat-square">
     <a href="https://github.com/HaianCao/CodexApter/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/HaianCao/CodexApter/ci.yml?branch=main&style=flat-square&label=tests"></a>
     <a href="https://github.com/HaianCao/Protoverta"><img alt="Gateway: Protoverta" src="https://img.shields.io/badge/gateway-Protoverta-2f6f8f?style=flat-square"></a>
   </p>
@@ -51,6 +51,18 @@ codex-ca
 The first time, this opens the setup page in your browser (later, `codex-ca setup` opens it). Paste your provider's base URL and API key, choose the API it speaks, pick a model and select **Run Codex**. That is all: authentication, the connection mode, the model's context window and retries are set up automatically.
 
 Windows supports native CLI executables and standard npm global or project installations. Custom batch-wrapper behavior is not supported; use an official CLI installation if the launcher cannot resolve it safely.
+
+### Linux and macOS
+
+In a terminal, run the installer directly from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HaianCao/CodexApter/main/scripts/install.sh | bash
+```
+
+It needs Python 3.11+ with `venv` (on Debian/Ubuntu: `sudo apt install python3 python3-venv`; on macOS: `brew install python@3.13`), installs the official Codex CLI with its own installer only if it is missing, and puts `codex-ca` in `~/.local/bin` (added to your shell profile if needed). No `sudo` is used. Run the same command again to update; your providers and API keys are kept. Settings live in `~/.config/codexapter` and the model cache in `~/.cache/codexapter` (or under `$XDG_CONFIG_HOME` / `$XDG_CACHE_HOME`).
+
+Open a new terminal and run `codex-ca`; setup works as on Windows.
 
 ## Configure a provider
 
@@ -107,7 +119,7 @@ limit (previously 4096, which truncated long edits).
 
 How the gateway converts each protocol, its options and limits: [Protoverta documentation](https://haiancao.github.io/Protoverta/). Tested providers (OpenRouter, NVIDIA NIM, TokenHarbor, AgentRouter), their known limits and recommended settings: [provider compatibility](https://github.com/HaianCao/Protoverta/blob/main/docs/compatibility/providers.md).
 
-CodexApter **0.3.0** installs [Protoverta](https://github.com/HaianCao/Protoverta) **0.4.0**; the installer verifies the gateway wheel's SHA-256 before installing it.
+CodexApter **0.3.1** installs [Protoverta](https://github.com/HaianCao/Protoverta) **0.4.0**; the installer verifies the gateway wheel's SHA-256 before installing it.
 
 Under **Advanced: model compatibility checks**, you can select a local capability
 registry file and require verified capabilities. Relative paths start at the
@@ -174,8 +186,9 @@ Classes: `rate_limit`, `overloaded`, `server`, `network`, `stream_interrupted`, 
 |---|---|
 | "The provider rejected this API key" when saving | Paste the key again (without `Bearer `); check that it is active and has credit. |
 | "This provider only accepts its official CLIs" | Expected for AgentRouter: it runs Direct and has no readable model list; type the model ID. |
+| `401 Unauthorized: unauthorized client detected` when running | The provider (for example AgentRouter) accepts only the official Codex, which must reach it directly with the Responses API. Open setup, edit the provider and save it again: setup now picks Responses and Direct for such providers (or choose the AgentRouter preset). |
 | "No model list" / the model list is empty | Type the exact model ID from the provider's website. |
-| "This provider has no … endpoint at this address" | Check the base URL (it usually ends in `/v1`) and the API you chose. |
+| "This provider has no … endpoint at this address" or "answered with a web page" | Check the base URL (it usually ends in `/v1`) and the API you chose. |
 | Requests fail after a long wait | Open `%LOCALAPPDATA%\codexapter\retry.log` to see the provider's error for each attempt. |
 | "Protoverta component is missing or broken" | Run the installer command again; it repairs the installation and keeps your settings. |
 | Behind a company proxy | Set `HTTPS_PROXY` (and `NO_PROXY` for local addresses); the local gateway is reached directly. |
@@ -192,6 +205,14 @@ In PowerShell, run the uninstaller from GitHub:
 It removes the launcher and its wrapper PATH entries, not the official Codex CLI. Separate prompts let you reset adapter environment overrides and delete default provider settings, API keys and cache (type `DELETE`). Everything is kept unless you confirm its removal.
 
 Environment reset clears `CODEX_CA_CONFIG`, `CODEX_CA_CACHE`, `CODEX_CA_ENV_FILE`, `CODEX_CA_MCP_CONFIG`, `CODEX_CA_MODEL_CATALOG` and `CODEX_CA_ENABLE_SUBAGENTS` at user/process scope. It does not delete custom-path files, provider key variables, or shared `ANTHROPIC_*`/`OPENAI_*` variables. Machine-wide settings are not changed. Open a new terminal afterward. To explicitly request reset without prompts, append `-ResetEnvironment -NonInteractive`; data deletion still requires interactive confirmation.
+
+On Linux and macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HaianCao/CodexApter/main/scripts/uninstall.sh | bash
+```
+
+It removes `codex-ca`, its environments and the PATH lines the installer added, not the official Codex CLI. Provider settings, API keys and the cache are kept; add `--delete-data` (`… | bash -s -- --delete-data`) to delete them too. Custom paths set through environment variables are never deleted.
 
 ## Advanced gateway settings
 
