@@ -15,7 +15,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from .config import Config, Provider, cache_path, migrate_legacy_cache
 from .credentials import resolve_token
 from .errors import DiscoveryError
-from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler
+from .http_deadline import Deadline, DeadlineHTTPHandler, DeadlineHTTPSHandler, attach_deadline
 from .settings_store import SettingsGuard
 
 _UNSET = object()
@@ -219,7 +219,12 @@ def cached_models(provider: Provider, path: Path | None = None, *, config=None) 
         models = []
     fetched_at, now = entry.get("fetched_at"), time.time()
     # Avoid float conversion of untrusted, potentially huge JSON integers.
-    stale = type(fetched_at) not in (int, float) or not 0 <= fetched_at <= now or now - fetched_at > provider.discovery.cache_ttl_seconds
+    stale = (
+        isinstance(fetched_at, bool)
+        or not isinstance(fetched_at, int | float)
+        or not 0 <= fetched_at <= now
+        or now - fetched_at > provider.discovery.cache_ttl_seconds
+    )
     return [item for item in models if isinstance(item, str)], stale
 
 
@@ -272,7 +277,7 @@ def fetch_models(
             if budget is not None:
 
                 def upstream_open(request, *, timeout):
-                    request.adapter_deadline = budget
+                    attach_deadline(request, budget)
                     return _open(request, timeout=min(timeout, budget.remaining()))
 
                 options["upstream_open"] = upstream_open
@@ -297,7 +302,7 @@ def fetch_models(
     request = Request(provider.base_url + provider.discovery.path, headers=headers, method="GET")
     try:
         with nullcontext(budget) if budget is not None else Deadline(timeout) as active_budget:
-            request.adapter_deadline = active_budget
+            attach_deadline(request, active_budget)
             with _open(request, timeout=active_budget.remaining()) as response:
                 raw = response.read(8_000_001)
                 active_budget.remaining()

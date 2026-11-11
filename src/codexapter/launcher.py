@@ -5,6 +5,7 @@ import secrets
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from .agent_models import agent_overrides
 from .command import command_prefix, foreground_child
@@ -174,7 +175,7 @@ def _gateway(config: Config, provider: Provider, model: str | None = None):
     if not token:
         raise LaunchError(f"Provider '{provider.id}' needs an API key for gateway mode.")
     try:
-        registry_options = {}
+        registry_options: dict[str, Any] = {}
         if model is not None:
             from protoverta.model_snapshot import ModelSnapshot, SnapshotModel
 

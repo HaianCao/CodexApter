@@ -8,6 +8,7 @@ import threading
 import webbrowser
 from http import HTTPStatus
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .agent_models import validate_agent_models
@@ -339,7 +340,7 @@ def serve(config: Config) -> int:
                 if urlparse(self.path).path == "/api/models/refresh":
                     self._refresh(body)
                     return
-                self._notes = []
+                self._notes: list[str] = []
                 if urlparse(self.path).path == "/api/provider":
                     # Network checks run before taking the settings lock.
                     body, self._notes = detect_connection(config, body)
@@ -362,7 +363,7 @@ def serve(config: Config) -> int:
                 identity = _identity(provider, snapshot, token=credential)
                 budget = Deadline(15)
                 refreshes.add(budget)
-            entries = []
+            entries: list[Any] = []
             try:
                 with budget:
                     models = fetch_models(snapshot, provider, cache_sink=entries.append, budget=budget, token=credential)

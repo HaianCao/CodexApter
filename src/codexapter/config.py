@@ -7,7 +7,7 @@ import tempfile
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 from urllib.parse import urlsplit
 
 try:
@@ -268,6 +268,10 @@ class Config:
         return selected, resolved_model, reasoning or self.defaults.reasoning_effort
 
 
+@overload
+def _string(value: Any, field_name: str, required: Literal[True]) -> str: ...
+@overload
+def _string(value: Any, field_name: str, required: bool = False) -> str | None: ...
 def _string(value: Any, field_name: str, required: bool = False) -> str | None:
     if value is None and not required:
         return None
@@ -478,7 +482,7 @@ def retry_policy(config: Config):
 
 def validate_secret_names(config: Config) -> None:
     """Require explicit sharing via one reference, not colliding env names."""
-    owners = {}
+    owners: dict[str, str] = {}
     for name, ref in config.secrets.items():
         if not ref.env_var:
             continue
